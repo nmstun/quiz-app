@@ -237,3 +237,15 @@ h1 {
 .course-change-btn:hover { color: var(--primary-dark); }
 
 .hidden { display: none !important; }
+
+/* テキスト入力フォーカス中(iOS等でキーボード表示中)はレイアウトを詰めて、
+   問題文とキーボードが同時に見えるようにする */
+body.compact .card { padding: 14px 20px; }
+body.compact .sub { margin-bottom: 10px; }
+body.compact .question-box { padding: 4px 0 8px; }
+body.compact .question { font-size: 26px; }
+body.compact .progress { margin-bottom: 10px; }
+body.compact .status-line { min-height: 0; margin-bottom: 4px; }
+body.compact .answer-display { min-height: 0; margin-bottom: 8px; }
+body.compact .mic-btn { display: none; }
+body.compact .note { display: none; }

@@ -254,6 +254,10 @@
     }
   });
 
+  // ---- キーボード表示中はレイアウトを詰めて、問題文とキーボードが同時に見えるようにする ----
+  textInput.addEventListener('focus', () => document.body.classList.add('compact'));
+  textInput.addEventListener('blur', () => document.body.classList.remove('compact'));
+
   // ---- 結果表示 ----
   function showResult() {
     quizView.classList.add('hidden');
