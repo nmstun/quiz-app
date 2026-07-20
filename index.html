@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>四則演算クイズ</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="card">
+  <h1>四則演算クイズ</h1>
+  <div class="sub">音声で答えよう。5問1セット。</div>
+
+  <div id="quizView">
+    <div class="progress" id="progress"></div>
+
+    <div class="question-box">
+      <div class="question" id="question">--</div>
+    </div>
+
+    <div class="status-line" id="statusLine"></div>
+    <div class="answer-display" id="answerDisplay">&nbsp;</div>
+
+    <div class="controls">
+      <button class="mic-btn" id="micBtn">
+        <span id="micIcon">🎤</span>
+        <span id="micLabel">話して答える</span>
+      </button>
+      <div class="text-fallback">
+        <input type="text" id="textInput" inputmode="numeric" placeholder="数字で入力(音声が使えない場合)">
+        <button id="submitBtn">送信</button>
+      </div>
+    </div>
+
+    <div class="note" id="note"></div>
+  </div>
+
+  <div id="resultView" class="result hidden">
+    <div class="sub">結果</div>
+    <div class="score" id="scoreText">0/5</div>
+    <div class="msg" id="scoreMsg"></div>
+    <ul class="result-list" id="resultList"></ul>
+    <button class="retry-btn" id="retryBtn">もう一度挑戦</button>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
