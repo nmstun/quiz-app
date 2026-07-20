@@ -205,6 +205,7 @@
     };
 
     recognition.onerror = (event) => {
+      if (event.error === 'aborted') return; // バックグラウンド遷移時などの意図的な中断
       statusLineEl.textContent = '音声認識エラー: ' + event.error + '。テキスト入力もお試しください。';
       statusLineEl.className = 'status-line wrong';
     };
@@ -215,6 +216,14 @@
       micIcon.textContent = '🎤';
       micLabel.textContent = '話して答える';
     };
+
+    // タブ/画面が非表示になったらマイクを確実に解放する(iOS等でバックグラウンドでも
+    // マイク使用中インジケータが点灯し続けるのを防ぐ)
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && recognizing) {
+        recognition.abort();
+      }
+    });
   }
 
   micBtn.addEventListener('click', () => {
