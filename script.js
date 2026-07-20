@@ -6,6 +6,7 @@
   let results = []; // {q, correctAnswer, userAnswer, correct}
   let recognition = null;
   let recognizing = false;
+  let awaitingNext = false; // 正誤判定後、次の設問に移るまでの間は新たな回答を受け付けない
 
   const $ = id => document.getElementById(id);
   const progressEl = $('progress');
@@ -74,12 +75,21 @@
   }
 
   function renderQuestion() {
+    awaitingNext = false;
+    setInputsDisabled(false);
     statusLineEl.textContent = '';
     statusLineEl.className = 'status-line';
     answerDisplayEl.innerHTML = '&nbsp;';
     textInput.value = '';
     questionEl.textContent = questions[current].text;
     renderProgress();
+  }
+
+  // ---- 連打防止 ----
+  function setInputsDisabled(disabled) {
+    submitBtn.disabled = disabled;
+    textInput.disabled = disabled;
+    if (SpeechRecognition) micBtn.disabled = disabled;
   }
 
   // ---- 回答テキストから数値を抽出 ----
@@ -126,6 +136,8 @@
 
   // ---- 回答処理 ----
   function submitAnswer(rawText, source) {
+    if (awaitingNext) return; // 次の設問への遷移待ち中は連打を無視
+
     const userNum = extractNumber(rawText);
     answerDisplayEl.textContent = rawText ? `認識結果: 「${rawText}」` : '';
 
@@ -134,6 +146,9 @@
       statusLineEl.className = 'status-line wrong';
       return;
     }
+
+    awaitingNext = true;
+    setInputsDisabled(true);
 
     const correctAnswer = questions[current].answer;
     const isCorrect = userNum === correctAnswer;
