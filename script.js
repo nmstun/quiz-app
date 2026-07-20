@@ -31,6 +31,8 @@
   const retryBtn = $('retryBtn');
   const courseChangeBtn = $('courseChangeBtn');
   const courseBtns = document.querySelectorAll('.course-btn');
+  const clearScoresBtn = $('clearScoresBtn');
+  const clearScoresMsgEl = $('clearScoresMsg');
 
   // ---- 問題生成 ----
   function randInt(min, max) {
@@ -292,6 +294,16 @@
     const sec = Math.round(totalSec % 60);
     return `${min}分${sec}秒`;
   }
+
+  clearScoresBtn.addEventListener('click', () => {
+    if (!confirm('すべてのコースのベストスコアをクリアします。よろしいですか?')) return;
+    try {
+      localStorage.removeItem(BEST_SCORES_KEY);
+    } catch (e) {
+      // 保存できない環境では何もしない
+    }
+    clearScoresMsgEl.textContent = '記録をクリアしました。';
+  });
 
   // ---- 結果表示 ----
   function showResult() {
