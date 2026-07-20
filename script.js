@@ -90,6 +90,11 @@
     submitBtn.disabled = disabled;
     textInput.disabled = disabled;
     if (SpeechRecognition) micBtn.disabled = disabled;
+    // 入力を受け付けない間はマイクも必ずオフにする(テキスト回答時に音声認識が
+    // 聞き取り中のまま残る、最終問題後もマイクがオンのままになる、等を防ぐ)
+    if (disabled && recognition && recognizing) {
+      recognition.abort();
+    }
   }
 
   // ---- 回答テキストから数値を抽出 ----
