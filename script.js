@@ -105,6 +105,40 @@
     }
   }
 
+  // ---- 正誤音(Web Audio APIで生成、音声ファイル不要) ----
+  let audioCtx = null;
+
+  function unlockAudio() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    if (!audioCtx) audioCtx = new AC();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function playTone(freq, startOffset, duration, type, peakGain) {
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    const t0 = audioCtx.currentTime + startOffset;
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(peakGain, t0 + 0.02);
+    gain.gain.linearRampToValueAtTime(0, t0 + duration);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t0);
+    osc.stop(t0 + duration + 0.02);
+  }
+
+  function playCorrectSound() {
+    playTone(880, 0, 0.12, 'sine', 0.2);
+    playTone(1320, 0.1, 0.18, 'sine', 0.2);
+  }
+
+  function playWrongSound() {
+    playTone(220, 0, 0.25, 'square', 0.12);
+  }
+
   // ---- 回答テキストから数値を抽出 ----
   const kanjiDigits = { '零':0,'〇':0,'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10,'百':100 };
 
@@ -178,6 +212,8 @@
       : `不正解… 正解は ${correctAnswer}`;
     statusLineEl.className = 'status-line ' + (isCorrect ? 'correct' : 'wrong');
 
+    isCorrect ? playCorrectSound() : playWrongSound();
+
     renderProgress();
 
     setTimeout(() => {
@@ -240,6 +276,7 @@
   }
 
   micBtn.addEventListener('click', () => {
+    unlockAudio(); // ユーザー操作の中で呼ぶことでiOS等の再生制限を解除しておく
     if (!recognition || recognizing) return;
     try {
       recognition.start();
@@ -249,6 +286,7 @@
   });
 
   submitBtn.addEventListener('click', () => {
+    unlockAudio();
     if (!textInput.value.trim()) return;
     submitAnswer(textInput.value, 'text');
   });
