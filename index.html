@@ -10,9 +10,26 @@
 
 <div class="card">
   <h1>咲登クイズ</h1>
-  <div class="sub">音声で答えよう。5問1セット。</div>
+  <div class="sub">音声で答えよう。コースを選んでスタート。</div>
 
-  <div id="quizView">
+  <div id="courseView">
+    <div class="course-list">
+      <button class="course-btn" data-count="5">
+        <span class="course-name">みじかい</span>
+        <span class="course-count">5問</span>
+      </button>
+      <button class="course-btn" data-count="10">
+        <span class="course-name">ふつう</span>
+        <span class="course-count">10問</span>
+      </button>
+      <button class="course-btn" data-count="20">
+        <span class="course-name">ながい</span>
+        <span class="course-count">20問</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="quizView" class="hidden">
     <div class="progress" id="progress"></div>
 
     <div class="question-box">
@@ -42,6 +59,7 @@
     <div class="msg" id="scoreMsg"></div>
     <ul class="result-list" id="resultList"></ul>
     <button class="retry-btn" id="retryBtn">もう一度挑戦</button>
+    <button class="course-change-btn" id="courseChangeBtn">別のコースを選ぶ</button>
   </div>
 </div>
 

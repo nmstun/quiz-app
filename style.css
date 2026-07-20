@@ -37,6 +37,32 @@ h1 {
   font-size: 13px;
   margin-bottom: 24px;
 }
+.course-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.course-btn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px solid #e4e8f2;
+  background: #f8f9fd;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, transform .1s;
+}
+.course-btn:hover { background: #eef1fa; border-color: #d9deec; }
+.course-btn:active { transform: scale(0.98); }
+.course-btn .course-count {
+  color: var(--primary);
+  font-weight: 700;
+}
+
 .progress {
   display: flex;
   gap: 6px;
@@ -195,5 +221,19 @@ h1 {
   cursor: pointer;
 }
 .retry-btn:hover { background: var(--primary-dark); }
+
+.course-change-btn {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  border-radius: 12px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.course-change-btn:hover { color: var(--primary-dark); }
 
 .hidden { display: none !important; }

@@ -1,5 +1,5 @@
 (function () {
-  const TOTAL = 5;
+  let TOTAL = 5;
   const NEXT_QUESTION_DELAY_MS = 2000;
   let questions = [];
   let current = 0;
@@ -19,12 +19,15 @@
   const textInput = $('textInput');
   const submitBtn = $('submitBtn');
   const noteEl = $('note');
+  const courseView = $('courseView');
   const quizView = $('quizView');
   const resultView = $('resultView');
   const scoreText = $('scoreText');
   const scoreMsg = $('scoreMsg');
   const resultList = $('resultList');
   const retryBtn = $('retryBtn');
+  const courseChangeBtn = $('courseChangeBtn');
+  const courseBtns = document.querySelectorAll('.course-btn');
 
   // ---- 問題生成 ----
   function randInt(min, max) {
@@ -276,6 +279,19 @@
 
   retryBtn.addEventListener('click', startQuiz);
 
+  courseChangeBtn.addEventListener('click', () => {
+    resultView.classList.add('hidden');
+    courseView.classList.remove('hidden');
+  });
+
+  courseBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      TOTAL = parseInt(btn.dataset.count, 10);
+      courseView.classList.add('hidden');
+      startQuiz();
+    });
+  });
+
   function startQuiz() {
     current = 0;
     results = [];
@@ -286,5 +302,4 @@
   }
 
   setupRecognition();
-  startQuiz();
 })();
