@@ -191,6 +191,17 @@ h1 {
 }
 .result .msg {
   color: var(--muted);
+  margin-bottom: 4px;
+}
+.result .time-text {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.result .best-score {
+  color: var(--primary-dark);
+  font-size: 13px;
+  font-weight: 600;
   margin-bottom: 24px;
 }
 .result-list {

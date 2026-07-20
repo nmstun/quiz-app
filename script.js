@@ -7,6 +7,7 @@
   let recognition = null;
   let recognizing = false;
   let awaitingNext = false; // 正誤判定後、次の設問に移るまでの間は新たな回答を受け付けない
+  let quizStartTime = 0;
 
   const $ = id => document.getElementById(id);
   const progressEl = $('progress');
@@ -24,6 +25,8 @@
   const resultView = $('resultView');
   const scoreText = $('scoreText');
   const scoreMsg = $('scoreMsg');
+  const timeTextEl = $('timeText');
+  const bestScoreEl = $('bestScoreText');
   const resultList = $('resultList');
   const retryBtn = $('retryBtn');
   const courseChangeBtn = $('courseChangeBtn');
@@ -258,19 +261,66 @@
   textInput.addEventListener('focus', () => document.body.classList.add('compact'));
   textInput.addEventListener('blur', () => document.body.classList.remove('compact'));
 
+  // ---- コースごとのベストスコア(正解数優先、同数なら所要時間が短い方が上位) ----
+  const BEST_SCORES_KEY = 'sakitoQuizBestScores';
+
+  function loadBestScores() {
+    try {
+      return JSON.parse(localStorage.getItem(BEST_SCORES_KEY)) || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function saveBestScores(scores) {
+    try {
+      localStorage.setItem(BEST_SCORES_KEY, JSON.stringify(scores));
+    } catch (e) {
+      // プライベートブラウズ等、保存できない環境では無視
+    }
+  }
+
+  function isBetterScore(a, b) {
+    if (a.correct !== b.correct) return a.correct > b.correct;
+    return a.timeMs < b.timeMs;
+  }
+
+  function formatDuration(ms) {
+    const totalSec = ms / 1000;
+    if (totalSec < 60) return `${totalSec.toFixed(1)}秒`;
+    const min = Math.floor(totalSec / 60);
+    const sec = Math.round(totalSec % 60);
+    return `${min}分${sec}秒`;
+  }
+
   // ---- 結果表示 ----
   function showResult() {
     quizView.classList.add('hidden');
     resultView.classList.remove('hidden');
 
     const correctCount = results.filter(r => r.correct).length;
+    const timeMs = Date.now() - quizStartTime;
     scoreText.textContent = `${correctCount}/${TOTAL}`;
+    timeTextEl.textContent = `所要時間: ${formatDuration(timeMs)}`;
 
     let msg;
     if (correctCount === TOTAL) msg = 'パーフェクト！お見事です。';
     else if (correctCount >= TOTAL * 0.6) msg = 'いい調子！もう少しで満点。';
     else msg = '練習あるのみ。もう一度挑戦してみよう。';
     scoreMsg.textContent = msg;
+
+    const scores = loadBestScores();
+    const courseKey = String(TOTAL);
+    const current = { correct: correctCount, total: TOTAL, timeMs };
+    const prevBest = scores[courseKey];
+    const isNewBest = !prevBest || isBetterScore(current, prevBest);
+    if (isNewBest) {
+      scores[courseKey] = current;
+      saveBestScores(scores);
+    }
+    const best = scores[courseKey];
+    bestScoreEl.textContent = `ベストスコア(${TOTAL}問コース): ${best.correct}/${best.total}・${formatDuration(best.timeMs)}`
+      + (isNewBest ? '(新記録！)' : '');
 
     resultList.innerHTML = '';
     results.forEach(r => {
@@ -299,6 +349,7 @@
   function startQuiz() {
     current = 0;
     results = [];
+    quizStartTime = Date.now();
     generateSet();
     resultView.classList.add('hidden');
     quizView.classList.remove('hidden');
