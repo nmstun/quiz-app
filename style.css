@@ -63,10 +63,14 @@ h1 {
   font-weight: 700;
 }
 
-.clear-scores-btn {
-  width: 100%;
-  padding: 10px;
+.settings-row {
+  display: flex;
+  gap: 8px;
   margin-top: 16px;
+}
+.settings-link-btn {
+  flex: 1;
+  padding: 10px;
   border-radius: 12px;
   border: none;
   background: none;
@@ -75,6 +79,7 @@ h1 {
   cursor: pointer;
   text-decoration: underline;
 }
+.settings-link-btn:hover { color: var(--primary-dark); }
 .clear-scores-btn:hover { color: var(--wrong); }
 .clear-scores-msg {
   font-size: 12px;

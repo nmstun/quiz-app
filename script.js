@@ -33,6 +33,7 @@
   const courseBtns = document.querySelectorAll('.course-btn');
   const clearScoresBtn = $('clearScoresBtn');
   const clearScoresMsgEl = $('clearScoresMsg');
+  const seToggleBtn = $('seToggleBtn');
 
   // ---- 問題生成 ----
   function randInt(min, max) {
@@ -106,7 +107,29 @@
   }
 
   // ---- 正誤音(Web Audio APIで生成、音声ファイル不要) ----
+  const SE_ENABLED_KEY = 'sakitoQuizSeEnabled';
+  let seEnabled = true;
+  try {
+    seEnabled = localStorage.getItem(SE_ENABLED_KEY) !== 'off';
+  } catch (e) {
+    // 保存できない環境ではデフォルト(オン)のまま
+  }
   let audioCtx = null;
+
+  function updateSeToggleLabel() {
+    seToggleBtn.textContent = `効果音: ${seEnabled ? 'オン' : 'オフ'}`;
+  }
+  updateSeToggleLabel();
+
+  seToggleBtn.addEventListener('click', () => {
+    seEnabled = !seEnabled;
+    try {
+      localStorage.setItem(SE_ENABLED_KEY, seEnabled ? 'on' : 'off');
+    } catch (e) {
+      // 保存できない環境では今回のセッション内でのみ有効
+    }
+    updateSeToggleLabel();
+  });
 
   function unlockAudio() {
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -116,7 +139,7 @@
   }
 
   function playTone(freq, startOffset, duration, type, peakGain) {
-    if (!audioCtx) return;
+    if (!seEnabled || !audioCtx) return;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.type = type;
