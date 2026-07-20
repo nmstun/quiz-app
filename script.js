@@ -1,6 +1,6 @@
 (function () {
   const TOTAL = 5;
-  const NEXT_QUESTION_DELAY_MS = 1200;
+  const NEXT_QUESTION_DELAY_MS = 2000;
   let questions = [];
   let current = 0;
   let results = []; // {q, correctAnswer, userAnswer, correct}
