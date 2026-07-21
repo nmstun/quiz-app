@@ -37,6 +37,33 @@ h1 {
   font-size: 13px;
   margin-bottom: 24px;
 }
+.category-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+  background: #eef1fa;
+  border-radius: 12px;
+  padding: 4px;
+}
+.category-btn {
+  flex: 1;
+  padding: 10px 6px;
+  border-radius: 9px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.category-btn:hover { color: var(--text); }
+.category-btn.active {
+  background: var(--card);
+  color: var(--primary-dark);
+  box-shadow: 0 2px 6px rgba(30, 40, 80, 0.1);
+}
+
 .course-list {
   display: flex;
   flex-direction: column;
@@ -112,6 +139,12 @@ h1 {
   font-size: 40px;
   font-weight: 700;
   letter-spacing: 1px;
+}
+.question.long-text {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: normal;
+  line-height: 1.5;
 }
 .status-line {
   min-height: 28px;
@@ -281,6 +314,7 @@ body.compact .card { padding: 14px 20px; }
 body.compact .sub { margin-bottom: 10px; }
 body.compact .question-box { padding: 4px 0 8px; }
 body.compact .question { font-size: 26px; }
+body.compact .question.long-text { font-size: 16px; }
 body.compact .progress { margin-bottom: 10px; }
 body.compact .status-line { min-height: 0; margin-bottom: 4px; }
 body.compact .answer-display { min-height: 0; margin-bottom: 8px; }

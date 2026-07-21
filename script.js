@@ -8,6 +8,7 @@
   let recognizing = false;
   let awaitingNext = false; // 正誤判定後、次の設問に移るまでの間は新たな回答を受け付けない
   let quizStartTime = 0;
+  let currentType = 'arith'; // 'arith' | 'riddle' | 'kanji'
 
   const $ = id => document.getElementById(id);
   const progressEl = $('progress');
@@ -31,16 +32,74 @@
   const retryBtn = $('retryBtn');
   const courseChangeBtn = $('courseChangeBtn');
   const courseBtns = document.querySelectorAll('.course-btn');
+  const categoryBtns = document.querySelectorAll('.category-btn');
   const clearScoresBtn = $('clearScoresBtn');
   const clearScoresMsgEl = $('clearScoresMsg');
   const seToggleBtn = $('seToggleBtn');
+
+  const CATEGORY_LABELS = { arith: '算数', riddle: 'なぞなぞ', kanji: '漢字クイズ' };
+
+  // ---- なぞなぞ・漢字クイズの問題バンク ----
+  const RIDDLES = [
+    { q: '「パン」はパンでも、食べられないパンは なあに?', a: ['フライパン', 'ふらいぱん'] },
+    { q: '「はし」ははしでも、わたれないはしは なあに?', a: ['はしご', '梯子'] },
+    { q: '「かみ」はかみでも、けすことができないかみは なあに?', a: ['かみなり', '雷'] },
+    { q: 'そらをとんでいないのに「くも」とよばれる、いとをはくいきものは なあに?', a: ['くも', '蜘蛛'] },
+    { q: '「はな」ははなでも、いいにおいがしないはなは なあに?', a: ['はなぢ', '鼻血'] },
+    { q: '1年でいちばん、ひるの時間がみじかい日を なんという?', a: ['とうじ', '冬至'] },
+    { q: '日本でいちばん高い山は なあに?', a: ['ふじさん', '富士山'] },
+    { q: '黒くて、朝によく飲まれる、豆からできる飲みものは なあに?', a: ['コーヒー', 'こーひー'] },
+    { q: '1年のさいごの日、12月31日を なんという?', a: ['おおみそか', '大晦日'] },
+    { q: 'サンタクロースがやってくる、12月24日の夜を なんという?', a: ['クリスマスイブ', 'くりすますいぶ'] },
+    { q: '日本でいちばん大きい湖は なあに?', a: ['びわこ', '琵琶湖'] },
+    { q: '日本の首都は どこ?', a: ['とうきょう', '東京'] },
+  ];
+
+  const KANJI_QUESTIONS = [
+    { q: '「犬」の読み方は?', a: ['いぬ'] },
+    { q: '「猫」の読み方は?', a: ['ねこ'] },
+    { q: '「花」の読み方は?', a: ['はな'] },
+    { q: '「山」の読み方は?', a: ['やま'] },
+    { q: '「川」の読み方は?', a: ['かわ'] },
+    { q: '「海」の読み方は?', a: ['うみ'] },
+    { q: '「空」の読み方は?', a: ['そら'] },
+    { q: '「雨」の読み方は?', a: ['あめ'] },
+    { q: '「星」の読み方は?', a: ['ほし'] },
+    { q: '「月」の読み方は?', a: ['つき'] },
+    { q: '「魚」の読み方は?', a: ['さかな'] },
+    { q: '「鳥」の読み方は?', a: ['とり'] },
+    { q: '「森」の読み方は?', a: ['もり'] },
+    { q: '「学校」の読み方は?', a: ['がっこう'] },
+    { q: '「友達」の読み方は?', a: ['ともだち'] },
+    { q: '「先生」の読み方は?', a: ['せんせい'] },
+    { q: '「家族」の読み方は?', a: ['かぞく'] },
+    { q: '「音楽」の読み方は?', a: ['おんがく'] },
+    { q: '「図書館」の読み方は?', a: ['としょかん'] },
+    { q: '「誕生日」の読み方は?', a: ['たんじょうび'] },
+  ];
 
   // ---- 問題生成 ----
   function randInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
-  function generateQuestion() {
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = randInt(0, i);
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // bankから重複しにくい順でn件取り出す(bankを使い切ったらシャッフルし直して継ぎ足す)
+  function sampleFromBank(bank, n) {
+    let pool = [];
+    while (pool.length < n) pool = pool.concat(shuffle(bank));
+    return pool.slice(0, n);
+  }
+
+  function generateArithQuestion() {
     const ops = ['+', '-', '×', '÷'];
     const op = ops[randInt(0, ops.length - 1)];
     let a, b, answer;
@@ -60,12 +119,21 @@
       a = b * q;
       answer = q;
     }
-    return { text: `${a} ${op} ${b} =`, answer };
+    return { type: 'arith', text: `${a} ${op} ${b} =`, answer };
   }
 
   function generateSet() {
-    questions = [];
-    for (let i = 0; i < TOTAL; i++) questions.push(generateQuestion());
+    if (currentType === 'arith') {
+      questions = [];
+      for (let i = 0; i < TOTAL; i++) questions.push(generateArithQuestion());
+      return;
+    }
+    const bank = currentType === 'riddle' ? RIDDLES : KANJI_QUESTIONS;
+    questions = sampleFromBank(bank, TOTAL).map(item => ({
+      type: currentType,
+      text: item.q,
+      accepted: item.a
+    }));
   }
 
   // ---- 進捗UI ----
@@ -90,7 +158,16 @@
     statusLineEl.className = 'status-line';
     answerDisplayEl.innerHTML = '&nbsp;';
     textInput.value = '';
-    questionEl.textContent = questions[current].text;
+    const q = questions[current];
+    questionEl.textContent = q.text;
+    questionEl.classList.toggle('long-text', q.text.length > 10);
+    if (q.type === 'arith') {
+      textInput.inputMode = 'numeric';
+      textInput.placeholder = '数字で入力(音声が使えない場合)';
+    } else {
+      textInput.inputMode = 'text';
+      textInput.placeholder = '答えを入力(音声が使えない場合)';
+    }
     renderProgress();
   }
 
@@ -204,35 +281,63 @@
     return null;
   }
 
+  // ---- なぞなぞ・漢字クイズの回答テキスト照合 ----
+  function normalizeAnswerText(s) {
+    return s.replace(/[\s、。！？!?・「」『』]/g, '').toLowerCase();
+  }
+
+  function isTextAnswerCorrect(rawText, accepted) {
+    const norm = normalizeAnswerText(rawText);
+    if (!norm) return false;
+    return accepted.some(ans => {
+      const a = normalizeAnswerText(ans);
+      return norm === a || norm.includes(a);
+    });
+  }
+
   // ---- 回答処理 ----
   function submitAnswer(rawText, source) {
     if (awaitingNext) return; // 次の設問への遷移待ち中は連打を無視
 
-    const userNum = extractNumber(rawText);
     answerDisplayEl.textContent = rawText ? `認識結果: 「${rawText}」` : '';
 
-    if (userNum === null) {
-      statusLineEl.textContent = '数字が聞き取れませんでした。もう一度お願いします。';
-      statusLineEl.className = 'status-line wrong';
-      return;
+    const question = questions[current];
+    let isCorrect, userAnswerDisplay, correctAnswerDisplay;
+
+    if (question.type === 'arith') {
+      const userNum = extractNumber(rawText);
+      if (userNum === null) {
+        statusLineEl.textContent = '数字が聞き取れませんでした。もう一度お願いします。';
+        statusLineEl.className = 'status-line wrong';
+        return;
+      }
+      isCorrect = userNum === question.answer;
+      userAnswerDisplay = userNum;
+      correctAnswerDisplay = question.answer;
+    } else {
+      if (!rawText || !rawText.trim()) {
+        statusLineEl.textContent = '聞き取れませんでした。もう一度お願いします。';
+        statusLineEl.className = 'status-line wrong';
+        return;
+      }
+      isCorrect = isTextAnswerCorrect(rawText, question.accepted);
+      userAnswerDisplay = rawText.trim();
+      correctAnswerDisplay = question.accepted[0];
     }
 
     awaitingNext = true;
     setInputsDisabled(true);
 
-    const correctAnswer = questions[current].answer;
-    const isCorrect = userNum === correctAnswer;
-
     results.push({
-      q: questions[current].text,
-      correctAnswer,
-      userAnswer: userNum,
+      q: question.text,
+      correctAnswer: correctAnswerDisplay,
+      userAnswer: userAnswerDisplay,
       correct: isCorrect
     });
 
     statusLineEl.textContent = isCorrect
-      ? `正解！ (${userNum})`
-      : `不正解… 正解は ${correctAnswer}`;
+      ? `正解！ (${userAnswerDisplay})`
+      : `不正解… 正解は ${correctAnswerDisplay}`;
     statusLineEl.className = 'status-line ' + (isCorrect ? 'correct' : 'wrong');
 
     isCorrect ? playCorrectSound() : playWrongSound();
@@ -383,16 +488,16 @@
     scoreMsg.textContent = msg;
 
     const scores = loadBestScores();
-    const courseKey = String(TOTAL);
-    const current = { correct: correctCount, total: TOTAL, timeMs };
+    const courseKey = `${currentType}-${TOTAL}`;
+    const thisResult = { correct: correctCount, total: TOTAL, timeMs };
     const prevBest = scores[courseKey];
-    const isNewBest = !prevBest || isBetterScore(current, prevBest);
+    const isNewBest = !prevBest || isBetterScore(thisResult, prevBest);
     if (isNewBest) {
-      scores[courseKey] = current;
+      scores[courseKey] = thisResult;
       saveBestScores(scores);
     }
     const best = scores[courseKey];
-    bestScoreEl.textContent = `ベストスコア(${TOTAL}問コース): ${best.correct}/${best.total}・${formatDuration(best.timeMs)}`
+    bestScoreEl.textContent = `ベストスコア(${CATEGORY_LABELS[currentType]}・${TOTAL}問コース): ${best.correct}/${best.total}・${formatDuration(best.timeMs)}`
       + (isNewBest ? '(新記録！)' : '');
 
     resultList.innerHTML = '';
@@ -409,6 +514,13 @@
   courseChangeBtn.addEventListener('click', () => {
     resultView.classList.add('hidden');
     courseView.classList.remove('hidden');
+  });
+
+  categoryBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentType = btn.dataset.type;
+      categoryBtns.forEach(b => b.classList.toggle('active', b === btn));
+    });
   });
 
   courseBtns.forEach(btn => {
