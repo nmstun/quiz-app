@@ -38,7 +38,8 @@ h1 {
   margin-bottom: 24px;
 }
 .category-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
   margin-bottom: 16px;
   background: #eef1fa;
@@ -46,7 +47,6 @@ h1 {
   padding: 4px;
 }
 .category-btn {
-  flex: 1;
   padding: 10px 4px;
   border-radius: 9px;
   border: none;
@@ -145,6 +145,17 @@ h1 {
   font-weight: 600;
   letter-spacing: normal;
   line-height: 1.5;
+}
+.symbol-svg {
+  width: 96px;
+  height: 96px;
+  color: var(--text);
+}
+.symbol-caption {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-top: 6px;
 }
 .status-line {
   min-height: 28px;
@@ -315,6 +326,7 @@ body.compact .sub { margin-bottom: 10px; }
 body.compact .question-box { padding: 4px 0 8px; }
 body.compact .question { font-size: 26px; }
 body.compact .question.long-text { font-size: 16px; }
+body.compact .symbol-svg { width: 56px; height: 56px; }
 body.compact .progress { margin-bottom: 10px; }
 body.compact .status-line { min-height: 0; margin-bottom: 4px; }
 body.compact .answer-display { min-height: 0; margin-bottom: 8px; }
