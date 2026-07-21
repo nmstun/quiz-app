@@ -10,7 +10,7 @@
 - 都道府県: 47都道府県から出題。県庁所在地問題と、何地方に属するか問う問題を約7:3で混ぜて出題
 - 地図記号: 国土地理院「地図記号一覧」を参考に作成したSVGアイコン30種(市役所・郵便局・神社・田・温泉など)を表示し、名称を答える
 - なぞなぞ: 固定の問題バンク(100問)からランダムに出題(バンクを使い切ったらシャッフルして再利用)
-- モビルスーツ: 機体の特徴を短く説明する文から名前を四択で答える(21機)。著作権に配慮し、画像・シルエットは使わずテキストのみで出題
+- モビルスーツ: 機体の特徴を短く説明する文から名前を四択で答える「機体名問題」と、機体名から型式番号(型番)を四択で答える「型番問題」を約7:3で混ぜて出題(21機)。著作権に配慮し、画像・シルエットは使わずテキストのみで出題
 - 達人: 算数・漢字・都道府県・地図記号・なぞなぞ・モビルスーツを設問ごとにランダムに混ぜて出題
 - 回答は音声入力(Web Speech API)、非対応環境ではテキスト入力にフォールバック。モビルスーツのみ四択ボタンでの回答形式
 - 終了後に正解数・所要時間・各問題の結果一覧を表示、結果画面から別のコースを選び直すことも可能
@@ -36,14 +36,14 @@ quiz-app/
 - `KANJI_DATA` — 教育漢字1026字のデータ。各要素は`[漢字, 学年, 画数, [読み方の候補...]]`。出典はKANJIDIC2(Electronic Dictionary Research and Development Group、CC BY-SA)で、学年別漢字配当表の現行版(2020年施行、1026字)と字数が一致することを確認済み
 - `PREF_DATA` / `REGIONS` — 47都道府県のデータ。各要素は`[都道府県名, 県庁所在地, 県庁所在地のひらがな読み, 地方キー]`。県庁所在地は four4to6/pref_lat_lon(MIT License)のデータを、地方区分(北海道/東北/関東/中部/近畿/中国/四国/九州)は標準的な学校教育の区分を参照して作成
 - `MAP_SYMBOLS` — 地図記号30種のデータ。各要素は`{name, svg}`。`svg`は国土地理院「地図記号一覧」ページの公式アイコン画像を目視で参照し、独自に描き起こしたSVGパス(公式画像そのものの複製ではない)
-- `MS_DATA` — モビルスーツクイズの問題バンク(21件)。各要素は`{q: 説明文, a: 正解の機体名}`。説明文は機体の一般的な特徴を独自に要約したもので、公式のプロフィール文や画像・シルエットは使用していない
+- `MS_DATA` — モビルスーツクイズの問題バンク(21件)。各要素は`{q: 説明文, a: 正解の機体名, code: 型式番号}`。説明文は機体の一般的な特徴を独自に要約したもので、公式のプロフィール文や画像・シルエットは使用していない。`code`はRX-78-2のような公式の型式番号(事実情報)
 - `generateSet()` — `currentType`に応じて出題を生成
   - `arith`: `generateArithQuestion()`で毎回ランダム生成。減算は常に非負、除算は常に割り切れる組み合わせのみになるよう制約
   - `riddle`: `RIDDLES`配列(100問、`{q, a: [正解表記の配列]}`)から`sampleFromBank()`でTOTAL問抽出。子ども向けなぞなぞサイトを参考に、単一の短い答えで判定できるものを選んで作成
   - `kanji`: `KANJI_DATA`から`sampleFromBank()`でTOTAL件抽出し、`generateKanjiQuestion()`で`STROKE_QUESTION_RATIO`(0.3)の確率で画数問題(`kanji-stroke`)、それ以外は読み方問題(`kanji-reading`)に変換
   - `pref`: `PREF_DATA`から`sampleFromBank()`でTOTAL件抽出し、`generatePrefQuestion()`で`PREF_REGION_QUESTION_RATIO`(0.3)の確率で地方問題(`pref-region`)、それ以外は県庁所在地問題(`pref-capital`)に変換
   - `map`: `MAP_SYMBOLS`から`sampleFromBank()`でTOTAL件抽出し、`generateSymbolQuestion()`でSVGアイコン問題(`symbol`)に変換
-  - `ms`: `MS_DATA`から`sampleFromBank()`でTOTAL件抽出し、`generateMsQuestion()`で正解1件+他の項目からランダムに選んだ不正解3件をシャッフルした四択(`ms-choice`)に変換
+  - `ms`: `MS_DATA`から`sampleFromBank()`でTOTAL件抽出し、`generateMsQuestion()`で`MS_CODE_QUESTION_RATIO`(0.3)の確率で型番問題(「〇〇の型番は?」、`code`から四択)、それ以外は機体名問題(説明文→`a`から四択)に変換。どちらも不正解3件はMS_DATAの他の項目からランダムに選出
   - `master`: 設問ごとに`arith`/`kanji`/`riddle`/`pref`/`map`/`ms`を`randInt()`で抽選し、`CATEGORY_GENERATORS`経由でそれぞれの生成関数を呼ぶ。漢字・なぞなぞ・都道府県・地図記号・モビルスーツはTOTAL件分を先に`sampleFromBank()`で確保したプールから順に消費するため、1回のセット内で重複しない
   - いずれもバンクを使い切ったらシャッフルして継ぎ足す(`sampleFromBank()`)
 - `renderQuestion()` — `questions[current].type`に応じて表示を切り替える
