@@ -6,7 +6,8 @@
 
 - カテゴリ(算数/なぞなぞ/漢字クイズ)と問題数コース(みじかい5問/ふつう10問/ながい20問)を選んで開始
 - 算数: 四則演算(+ - × ÷)のランダムな問題を出題
-- なぞなぞ・漢字クイズ: 固定の問題バンクからランダムに出題(バンクを使い切ったらシャッフルして再利用)
+- なぞなぞ: 固定の問題バンク(12問)からランダムに出題(バンクを使い切ったらシャッフルして再利用)
+- 漢字クイズ: 小学校で習う漢字1026字(教育漢字、学年別漢字配当表)から出題。読み方問題と画数問題を約7:3で混ぜて出題
 - 回答は音声入力(Web Speech API)、非対応環境ではテキスト入力にフォールバック
 - 終了後に正解数・所要時間・各問題の結果一覧を表示、結果画面から別のコースを選び直すことも可能
 - コースごとのベストスコア(正解数優先、同数なら所要時間が短い方が上位)をlocalStorageに記録
@@ -28,16 +29,19 @@ quiz-app/
 ## 主要ロジック(script.js)
 
 - `currentType` — `'arith' | 'riddle' | 'kanji'`。カテゴリボタン(`.category-btn`の`data-type`)で切り替わる
+- `KANJI_DATA` — 教育漢字1026字のデータ。各要素は`[漢字, 学年, 画数, [読み方の候補...]]`。出典はKANJIDIC2(Electronic Dictionary Research and Development Group、CC BY-SA)で、学年別漢字配当表の現行版(2020年施行、1026字)と字数が一致することを確認済み
 - `generateSet()` — `currentType`に応じて出題を生成
   - `arith`: `generateArithQuestion()`で毎回ランダム生成。減算は常に非負、除算は常に割り切れる組み合わせのみになるよう制約
-  - `riddle` / `kanji`: `RIDDLES` / `KANJI_QUESTIONS`配列(各問題は`{q, a: [正解表記の配列]}`)から`sampleFromBank()`でTOTAL問抽出。バンクを使い切ったらシャッフルして継ぎ足す
+  - `riddle`: `RIDDLES`配列(`{q, a: [正解表記の配列]}`)から`sampleFromBank()`でTOTAL問抽出
+  - `kanji`: `KANJI_DATA`から`sampleFromBank()`でTOTAL件抽出し、`generateKanjiQuestion()`で`STROKE_QUESTION_RATIO`(0.3)の確率で画数問題(`kanji-stroke`)、それ以外は読み方問題(`kanji-reading`)に変換
+  - いずれもバンクを使い切ったらシャッフルして継ぎ足す(`sampleFromBank()`)
 - `extractNumber(raw)` — 算数専用。音声認識/テキスト入力の文字列から数値を抽出
   - 半角/全角の算用数字に対応
   - 簡易的な漢数字パーサ(一〜九、十、百の組み合わせ、0〜999程度)にも対応
   - 「マイナス」を負号として解釈
   - ひらがな(例: 「じゅうさん」)は現状未対応 → 既知の制約
-- `isTextAnswerCorrect(raw, accepted)` — なぞなぞ・漢字クイズ専用。記号除去・小文字化した上で完全一致 or 部分一致(発話のゆらぎを許容)で判定
-- `submitAnswer()` — `questions[current].type`で算数/それ以外を分岐して採点し、2秒後に次の問題または結果画面へ遷移
+- `isTextAnswerCorrect(raw, accepted)` — なぞなぞ・漢字の読み方問題専用。記号除去・カタカナ→ひらがな変換・小文字化した上で完全一致 or 部分一致(発話のゆらぎを許容)で判定
+- `submitAnswer()` — `questions[current].type`が`arith`/`kanji-stroke`(数値)かそれ以外(テキスト)かで分岐して採点し、2秒後に次の問題または結果画面へ遷移
 - `TOTAL` — コース選択(`.course-btn`の`data-count`)で決まる出題数
 - `showResult()` — `localStorage`のキー`sakitoQuizBestScores`に `${currentType}-${TOTAL}` (例: `riddle-10`) ごとのベストスコアを保存。`isBetterScore()`で正解数→所要時間の順に比較
 
@@ -54,8 +58,9 @@ quiz-app/
 - [ ] スコア履歴(過去n回分の推移など)の保存。現状はコースごとのベストスコアのみ
 - [ ] スマホでの音声入力の権限リクエストUXを確認する
 - [ ] PWA化(オフライン対応・ホーム画面追加)の検討
-- [ ] なぞなぞ・漢字クイズの問題バンクを増やす(現状 なぞなぞ12問/漢字20問、ながいコースだと重複する)
+- [ ] なぞなぞの問題バンクを増やす(現状12問、ながいコースだと重複しうる。漢字クイズは1026字あるため問題なし)
 - [ ] `isTextAnswerCorrect()`は部分一致なので、短い正解(例:「くも」)だと無関係な発話でも誤って正解判定になる可能性がある
+- [ ] `KANJI_DATA`の読み方候補はKANJIDIC2の音訓すべてを含むため、稀に難読・古い読みが正解表示されることがある(先頭要素を正解表示に使用)
 
 ## 開発メモ由来の背景
 
