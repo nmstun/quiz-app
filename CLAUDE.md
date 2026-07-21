@@ -4,10 +4,11 @@
 
 ## 概要
 
-- カテゴリ(算数/漢字/なぞなぞ)と問題数コース(みじかい5問/ふつう10問/ながい20問)を選んで開始
+- カテゴリ(算数/漢字/なぞなぞ/達人)と問題数コース(みじかい5問/ふつう10問/ながい20問)を選んで開始
 - 算数: 四則演算(+ - × ÷)のランダムな問題を出題
 - なぞなぞ: 固定の問題バンク(100問)からランダムに出題(バンクを使い切ったらシャッフルして再利用)
 - 漢字: 小学校で習う漢字1026字(教育漢字、学年別漢字配当表)から出題。読み方問題と画数問題を約7:3で混ぜて出題
+- 達人: 算数・漢字・なぞなぞを設問ごとにランダムに混ぜて出題
 - 回答は音声入力(Web Speech API)、非対応環境ではテキスト入力にフォールバック
 - 終了後に正解数・所要時間・各問題の結果一覧を表示、結果画面から別のコースを選び直すことも可能
 - コースごとのベストスコア(正解数優先、同数なら所要時間が短い方が上位)をlocalStorageに記録
@@ -28,12 +29,13 @@ quiz-app/
 
 ## 主要ロジック(script.js)
 
-- `currentType` — `'arith' | 'riddle' | 'kanji'`。カテゴリボタン(`.category-btn`の`data-type`)で切り替わる
+- `currentType` — `'arith' | 'riddle' | 'kanji' | 'master'`。カテゴリボタン(`.category-btn`の`data-type`)で切り替わる。`master`(達人)は設問ごとにカテゴリを抽選して混ぜる特殊コース
 - `KANJI_DATA` — 教育漢字1026字のデータ。各要素は`[漢字, 学年, 画数, [読み方の候補...]]`。出典はKANJIDIC2(Electronic Dictionary Research and Development Group、CC BY-SA)で、学年別漢字配当表の現行版(2020年施行、1026字)と字数が一致することを確認済み
 - `generateSet()` — `currentType`に応じて出題を生成
   - `arith`: `generateArithQuestion()`で毎回ランダム生成。減算は常に非負、除算は常に割り切れる組み合わせのみになるよう制約
   - `riddle`: `RIDDLES`配列(100問、`{q, a: [正解表記の配列]}`)から`sampleFromBank()`でTOTAL問抽出。子ども向けなぞなぞサイトを参考に、単一の短い答えで判定できるものを選んで作成
   - `kanji`: `KANJI_DATA`から`sampleFromBank()`でTOTAL件抽出し、`generateKanjiQuestion()`で`STROKE_QUESTION_RATIO`(0.3)の確率で画数問題(`kanji-stroke`)、それ以外は読み方問題(`kanji-reading`)に変換
+  - `master`: 設問ごとに`arith`/`kanji`/`riddle`を`randInt()`で抽選し、`CATEGORY_GENERATORS`経由でそれぞれの生成関数を呼ぶ。漢字・なぞなぞはTOTAL件分を先に`sampleFromBank()`で確保したプールから順に消費するため、1回のセット内で重複しない
   - いずれもバンクを使い切ったらシャッフルして継ぎ足す(`sampleFromBank()`)
 - `extractNumber(raw)` — 算数専用。音声認識/テキスト入力の文字列から数値を抽出
   - 半角/全角の算用数字に対応

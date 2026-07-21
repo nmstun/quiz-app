@@ -37,7 +37,7 @@
   const clearScoresMsgEl = $('clearScoresMsg');
   const seToggleBtn = $('seToggleBtn');
 
-  const CATEGORY_LABELS = { arith: '算数', kanji: '漢字', riddle: 'なぞなぞ' };
+  const CATEGORY_LABELS = { arith: '算数', kanji: '漢字', riddle: 'なぞなぞ', master: '達人' };
 
   // ---- なぞなぞ・漢字クイズの問題バンク ----
   const RIDDLES = [
@@ -201,6 +201,18 @@
     return { type: 'kanji-reading', text: `「${kanji}」の読み方は?`, accepted: readings };
   }
 
+  function generateRiddleQuestion(item) {
+    return { type: 'riddle', text: item.q, accepted: item.a };
+  }
+
+  // カテゴリごとの1問生成関数。'master'(達人)コースで各設問のカテゴリを
+  // 抽選する際に使う
+  const CATEGORY_GENERATORS = {
+    arith: () => generateArithQuestion(),
+    kanji: pool => generateKanjiQuestion(pool.kanji[pool.kanjiIdx++]),
+    riddle: pool => generateRiddleQuestion(pool.riddle[pool.riddleIdx++])
+  };
+
   function generateSet() {
     if (currentType === 'arith') {
       questions = [];
@@ -211,11 +223,21 @@
       questions = sampleFromBank(KANJI_DATA, TOTAL).map(generateKanjiQuestion);
       return;
     }
-    questions = sampleFromBank(RIDDLES, TOTAL).map(item => ({
-      type: 'riddle',
-      text: item.q,
-      accepted: item.a
-    }));
+    if (currentType === 'riddle') {
+      questions = sampleFromBank(RIDDLES, TOTAL).map(generateRiddleQuestion);
+      return;
+    }
+    // 達人コース: 算数・漢字・なぞなぞを設問ごとにランダムに混ぜて出題
+    const pool = {
+      kanji: sampleFromBank(KANJI_DATA, TOTAL), kanjiIdx: 0,
+      riddle: sampleFromBank(RIDDLES, TOTAL), riddleIdx: 0
+    };
+    const categories = ['arith', 'kanji', 'riddle'];
+    questions = [];
+    for (let i = 0; i < TOTAL; i++) {
+      const cat = categories[randInt(0, categories.length - 1)];
+      questions.push(CATEGORY_GENERATORS[cat](pool));
+    }
   }
 
   // ---- 進捗UI ----

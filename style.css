@@ -47,12 +47,12 @@ h1 {
 }
 .category-btn {
   flex: 1;
-  padding: 10px 6px;
+  padding: 10px 4px;
   border-radius: 9px;
   border: none;
   background: none;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: background .15s, color .15s;
