@@ -37,7 +37,7 @@
   const clearScoresMsgEl = $('clearScoresMsg');
   const seToggleBtn = $('seToggleBtn');
 
-  const CATEGORY_LABELS = { arith: '算数', riddle: 'なぞなぞ', kanji: '漢字クイズ' };
+  const CATEGORY_LABELS = { arith: '算数', kanji: '漢字', riddle: 'なぞなぞ' };
 
   // ---- なぞなぞ・漢字クイズの問題バンク ----
   const RIDDLES = [
