@@ -19,6 +19,7 @@
       <button class="category-btn" data-type="pref">都道府県</button>
       <button class="category-btn" data-type="map">地図記号</button>
       <button class="category-btn" data-type="riddle">なぞなぞ</button>
+      <button class="category-btn" data-type="ms">モビルスーツ</button>
       <button class="category-btn" data-type="master">達人</button>
     </div>
     <div class="course-list">
@@ -52,7 +53,7 @@
     <div class="status-line" id="statusLine"></div>
     <div class="answer-display" id="answerDisplay">&nbsp;</div>
 
-    <div class="controls">
+    <div class="controls" id="controls">
       <button class="mic-btn" id="micBtn">
         <span id="micIcon">🎤</span>
         <span id="micLabel">話して答える</span>
@@ -62,6 +63,8 @@
         <button id="submitBtn">送信</button>
       </div>
     </div>
+
+    <div class="choice-list hidden" id="choiceList"></div>
 
     <div class="note" id="note"></div>
   </div>

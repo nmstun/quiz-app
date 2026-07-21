@@ -179,6 +179,29 @@ h1 {
   flex-direction: column;
   gap: 12px;
 }
+
+.choice-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.choice-btn {
+  padding: 14px 10px;
+  border-radius: 12px;
+  border: 1px solid #e4e8f2;
+  background: #f8f9fd;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, transform .1s;
+}
+.choice-btn:hover { background: #eef1fa; border-color: #d9deec; }
+.choice-btn:active { transform: scale(0.98); }
+.choice-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .mic-btn {
   display: flex;
   align-items: center;

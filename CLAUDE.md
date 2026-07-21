@@ -4,14 +4,15 @@
 
 ## 概要
 
-- カテゴリ(算数/漢字/都道府県/地図記号/なぞなぞ/達人)と問題数コース(みじかい5問/ふつう10問/ながい20問)を選んで開始
+- カテゴリ(算数/漢字/都道府県/地図記号/なぞなぞ/モビルスーツ/達人)と問題数コース(みじかい5問/ふつう10問/ながい20問)を選んで開始
 - 算数: 四則演算(+ - × ÷)のランダムな問題を出題
 - 漢字: 小学校で習う漢字1026字(教育漢字、学年別漢字配当表)から出題。読み方問題と画数問題を約7:3で混ぜて出題
 - 都道府県: 47都道府県から出題。県庁所在地問題と、何地方に属するか問う問題を約7:3で混ぜて出題
 - 地図記号: 国土地理院「地図記号一覧」を参考に作成したSVGアイコン30種(市役所・郵便局・神社・田・温泉など)を表示し、名称を答える
 - なぞなぞ: 固定の問題バンク(100問)からランダムに出題(バンクを使い切ったらシャッフルして再利用)
-- 達人: 算数・漢字・都道府県・地図記号・なぞなぞを設問ごとにランダムに混ぜて出題
-- 回答は音声入力(Web Speech API)、非対応環境ではテキスト入力にフォールバック
+- モビルスーツ: 機体の特徴を短く説明する文から名前を四択で答える(21機)。著作権に配慮し、画像・シルエットは使わずテキストのみで出題
+- 達人: 算数・漢字・都道府県・地図記号・なぞなぞ・モビルスーツを設問ごとにランダムに混ぜて出題
+- 回答は音声入力(Web Speech API)、非対応環境ではテキスト入力にフォールバック。モビルスーツのみ四択ボタンでの回答形式
 - 終了後に正解数・所要時間・各問題の結果一覧を表示、結果画面から別のコースを選び直すことも可能
 - コースごとのベストスコア(正解数優先、同数なら所要時間が短い方が上位)をlocalStorageに記録
 - コース選択画面から記録をクリア可能(確認ダイアログあり)
@@ -31,26 +32,32 @@ quiz-app/
 
 ## 主要ロジック(script.js)
 
-- `currentType` — `'arith' | 'riddle' | 'kanji' | 'pref' | 'map' | 'master'`。カテゴリボタン(`.category-btn`の`data-type`)で切り替わる。`master`(達人)は設問ごとにカテゴリを抽選して混ぜる特殊コース
+- `currentType` — `'arith' | 'riddle' | 'kanji' | 'pref' | 'map' | 'ms' | 'master'`。カテゴリボタン(`.category-btn`の`data-type`)で切り替わる。`master`(達人)は設問ごとにカテゴリを抽選して混ぜる特殊コース
 - `KANJI_DATA` — 教育漢字1026字のデータ。各要素は`[漢字, 学年, 画数, [読み方の候補...]]`。出典はKANJIDIC2(Electronic Dictionary Research and Development Group、CC BY-SA)で、学年別漢字配当表の現行版(2020年施行、1026字)と字数が一致することを確認済み
 - `PREF_DATA` / `REGIONS` — 47都道府県のデータ。各要素は`[都道府県名, 県庁所在地, 県庁所在地のひらがな読み, 地方キー]`。県庁所在地は four4to6/pref_lat_lon(MIT License)のデータを、地方区分(北海道/東北/関東/中部/近畿/中国/四国/九州)は標準的な学校教育の区分を参照して作成
 - `MAP_SYMBOLS` — 地図記号30種のデータ。各要素は`{name, svg}`。`svg`は国土地理院「地図記号一覧」ページの公式アイコン画像を目視で参照し、独自に描き起こしたSVGパス(公式画像そのものの複製ではない)
+- `MS_DATA` — モビルスーツクイズの問題バンク(21件)。各要素は`{q: 説明文, a: 正解の機体名}`。説明文は機体の一般的な特徴を独自に要約したもので、公式のプロフィール文や画像・シルエットは使用していない
 - `generateSet()` — `currentType`に応じて出題を生成
   - `arith`: `generateArithQuestion()`で毎回ランダム生成。減算は常に非負、除算は常に割り切れる組み合わせのみになるよう制約
   - `riddle`: `RIDDLES`配列(100問、`{q, a: [正解表記の配列]}`)から`sampleFromBank()`でTOTAL問抽出。子ども向けなぞなぞサイトを参考に、単一の短い答えで判定できるものを選んで作成
   - `kanji`: `KANJI_DATA`から`sampleFromBank()`でTOTAL件抽出し、`generateKanjiQuestion()`で`STROKE_QUESTION_RATIO`(0.3)の確率で画数問題(`kanji-stroke`)、それ以外は読み方問題(`kanji-reading`)に変換
   - `pref`: `PREF_DATA`から`sampleFromBank()`でTOTAL件抽出し、`generatePrefQuestion()`で`PREF_REGION_QUESTION_RATIO`(0.3)の確率で地方問題(`pref-region`)、それ以外は県庁所在地問題(`pref-capital`)に変換
   - `map`: `MAP_SYMBOLS`から`sampleFromBank()`でTOTAL件抽出し、`generateSymbolQuestion()`でSVGアイコン問題(`symbol`)に変換
-  - `master`: 設問ごとに`arith`/`kanji`/`riddle`/`pref`/`map`を`randInt()`で抽選し、`CATEGORY_GENERATORS`経由でそれぞれの生成関数を呼ぶ。漢字・なぞなぞ・都道府県・地図記号はTOTAL件分を先に`sampleFromBank()`で確保したプールから順に消費するため、1回のセット内で重複しない
+  - `ms`: `MS_DATA`から`sampleFromBank()`でTOTAL件抽出し、`generateMsQuestion()`で正解1件+他の項目からランダムに選んだ不正解3件をシャッフルした四択(`ms-choice`)に変換
+  - `master`: 設問ごとに`arith`/`kanji`/`riddle`/`pref`/`map`/`ms`を`randInt()`で抽選し、`CATEGORY_GENERATORS`経由でそれぞれの生成関数を呼ぶ。漢字・なぞなぞ・都道府県・地図記号・モビルスーツはTOTAL件分を先に`sampleFromBank()`で確保したプールから順に消費するため、1回のセット内で重複しない
   - いずれもバンクを使い切ったらシャッフルして継ぎ足す(`sampleFromBank()`)
-- `renderQuestion()` — `questions[current].type === 'symbol'`の場合のみ`questionEl.innerHTML`にSVGアイコン(`.symbol-svg`)とキャプションを描画。それ以外は`textContent`で通常の問題文を表示
+- `renderQuestion()` — `questions[current].type`に応じて表示を切り替える
+  - `symbol`: `questionEl.innerHTML`にSVGアイコン(`.symbol-svg`)とキャプションを描画
+  - `ms-choice`: マイク・テキスト入力(`#controls`)を隠し、`#choiceList`に4つの選択肢ボタンを動的生成。クリックで直接`submitAnswer()`を呼ぶ
+  - それ以外: `textContent`で通常の問題文を表示
 - `extractNumber(raw)` — 算数専用。音声認識/テキスト入力の文字列から数値を抽出
   - 半角/全角の算用数字に対応
   - 簡易的な漢数字パーサ(一〜九、十、百の組み合わせ、0〜999程度)にも対応
   - 「マイナス」を負号として解釈
   - ひらがな(例: 「じゅうさん」)は現状未対応 → 既知の制約
 - `isTextAnswerCorrect(raw, accepted)` — なぞなぞ・漢字の読み方問題専用。記号除去・カタカナ→ひらがな変換・小文字化した上で完全一致 or 部分一致(発話のゆらぎを許容)で判定
-- `submitAnswer()` — `questions[current].type`が`arith`/`kanji-stroke`(数値)かそれ以外(テキスト)かで分岐して採点し、2秒後に次の問題または結果画面へ遷移
+- `submitAnswer()` — `questions[current].type`が`arith`/`kanji-stroke`(数値)かそれ以外(テキスト)かで分岐して採点し、2秒後に次の問題または結果画面へ遷移。`ms-choice`の選択肢ボタンもクリック時にこの関数を直接呼ぶ
+- `setInputsDisabled()` — 連打防止用に送信ボタン・テキスト入力・マイクに加え、`#choiceList`内の選択肢ボタンもまとめて無効化する
 - `TOTAL` — コース選択(`.course-btn`の`data-count`)で決まる出題数
 - `showResult()` — `localStorage`のキー`sakitoQuizBestScores`に `${currentType}-${TOTAL}` (例: `riddle-10`) ごとのベストスコアを保存。`isBetterScore()`で正解数→所要時間の順に比較
 
@@ -71,6 +78,7 @@ quiz-app/
 - [ ] `KANJI_DATA`の読み方候補はKANJIDIC2の音訓すべてを含むため、稀に難読・古い読みが正解表示されることがある(先頭要素を正解表示に使用)
 - [ ] `MAP_SYMBOLS`のSVGは国土地理院の公式画像を参考に独自に描き起こした簡易版。正式な記号と細部が異なる場合がある
 - [ ] 東京都の「県庁所在地」は都庁がある新宿区としている(市ではないため`市区`のどちらの表記でも正解になるようにしている)
+- [ ] `MS_DATA`は21件と少なめ。他カテゴリと同程度(50〜100件)に増やす余地がある
 
 ## 開発メモ由来の背景
 
