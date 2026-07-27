@@ -1,4 +1,5 @@
 (function () {
+  const APP_VERSION = '0.1.0';
   let TOTAL = 5;
   const NEXT_QUESTION_DELAY_MS = 2000;
   let questions = [];
@@ -11,6 +12,10 @@
   let currentType = 'arith'; // 'arith' | 'riddle' | 'kanji' | 'pref' | 'map' | 'ms' | 'master'
 
   const $ = id => document.getElementById(id);
+  // 動作確認・問い合わせ時にどのビルドを見ているか分かるようにするため、
+  // 画面右上に常時表示するアプリバージョン
+  const appVersionEl = $('appVersion');
+  if (appVersionEl) appVersionEl.textContent = 'v' + APP_VERSION;
   const progressEl = $('progress');
   const questionEl = $('question');
   const statusLineEl = $('statusLine');

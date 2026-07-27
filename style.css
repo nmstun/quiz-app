@@ -9,6 +9,16 @@
   --muted: #7a8296;
 }
 * { box-sizing: border-box; }
+.app-version {
+  position: fixed;
+  z-index: 999;
+  top: max(0.5rem, env(safe-area-inset-top));
+  right: max(0.5rem, env(safe-area-inset-right));
+  font-size: 10px;
+  color: var(--muted);
+  user-select: none;
+  pointer-events: none;
+}
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
