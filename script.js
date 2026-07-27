@@ -1,5 +1,5 @@
 (function () {
-  const APP_VERSION = '0.2.0';
+  const APP_VERSION = '0.3.0';
   let TOTAL = 5;
   const NEXT_QUESTION_DELAY_MS = 2000;
   let questions = [];
@@ -44,10 +44,15 @@
   const clearScoresMsgEl = $('clearScoresMsg');
   const seToggleBtn = $('seToggleBtn');
   const arithGradeRowEl = $('arithGradeRow');
-  const gradeBtns = document.querySelectorAll('.grade-btn');
+  const arithGradeBtns = arithGradeRowEl.querySelectorAll('.grade-btn');
+  const kanjiGradeRowEl = $('kanjiGradeRow');
+  const kanjiGradeBtns = kanjiGradeRowEl.querySelectorAll('.grade-btn');
 
   const CATEGORY_LABELS = { arith: '算数', kanji: '漢字', pref: '都道府県', map: '地図記号', riddle: 'なぞなぞ', ms: 'モビルスーツ', master: '達人' };
   const ARITH_GRADE_LABELS = { low: '1〜2年生', mid: '3年生', high: '4年生' };
+  let kanjiGrade = 'mid'; // 'low'(1〜2年生) | 'mid'(3〜4年生) | 'high'(5〜6年生)
+  const KANJI_GRADE_LABELS = { low: '1〜2年生', mid: '3〜4年生', high: '5〜6年生' };
+  const KANJI_GRADE_RANGES = { low: [1, 2], mid: [3, 4], high: [5, 6] };
 
   // ---- なぞなぞ・漢字クイズの問題バンク ----
   const RIDDLES = [
@@ -320,6 +325,12 @@
     ms: pool => generateMsQuestion(pool.ms[pool.msIdx++])
   };
 
+  // 選択中の学年帯(kanjiGrade)に含まれる漢字だけを抽出したバンクを返す
+  function getKanjiBank() {
+    const [lo, hi] = KANJI_GRADE_RANGES[kanjiGrade];
+    return KANJI_DATA.filter(item => item[1] >= lo && item[1] <= hi);
+  }
+
   function generateSet() {
     if (currentType === 'arith') {
       questions = [];
@@ -327,7 +338,7 @@
       return;
     }
     if (currentType === 'kanji') {
-      questions = sampleFromBank(KANJI_DATA, TOTAL).map(generateKanjiQuestion);
+      questions = sampleFromBank(getKanjiBank(), TOTAL).map(generateKanjiQuestion);
       return;
     }
     if (currentType === 'riddle') {
@@ -348,7 +359,7 @@
     }
     // 達人コース: すべてのカテゴリを設問ごとにランダムに混ぜて出題
     const pool = {
-      kanji: sampleFromBank(KANJI_DATA, TOTAL), kanjiIdx: 0,
+      kanji: sampleFromBank(getKanjiBank(), TOTAL), kanjiIdx: 0,
       riddle: sampleFromBank(RIDDLES, TOTAL), riddleIdx: 0,
       pref: sampleFromBank(PREF_DATA, TOTAL), prefIdx: 0,
       map: sampleFromBank(MAP_SYMBOLS, TOTAL), mapIdx: 0,
@@ -742,11 +753,16 @@
     else msg = '練習あるのみ。もう一度挑戦してみよう。';
     scoreMsg.textContent = msg;
 
-    // 算数は学年別に範囲が変わるため、ベストスコアも学年ごとに分けて記録する
-    const courseKey = currentType === 'arith' ? `arith-${arithGrade}-${TOTAL}` : `${currentType}-${TOTAL}`;
-    const categoryLabel = currentType === 'arith'
-      ? `算数・${ARITH_GRADE_LABELS[arithGrade]}`
-      : CATEGORY_LABELS[currentType];
+    // 算数・漢字は学年別に範囲が変わるため、ベストスコアも学年ごとに分けて記録する
+    let courseKey = `${currentType}-${TOTAL}`;
+    let categoryLabel = CATEGORY_LABELS[currentType];
+    if (currentType === 'arith') {
+      courseKey = `arith-${arithGrade}-${TOTAL}`;
+      categoryLabel = `算数・${ARITH_GRADE_LABELS[arithGrade]}`;
+    } else if (currentType === 'kanji') {
+      courseKey = `kanji-${kanjiGrade}-${TOTAL}`;
+      categoryLabel = `漢字・${KANJI_GRADE_LABELS[kanjiGrade]}`;
+    }
     const scores = loadBestScores();
     const thisResult = { correct: correctCount, total: TOTAL, timeMs };
     const prevBest = scores[courseKey];
@@ -779,15 +795,23 @@
     btn.addEventListener('click', () => {
       currentType = btn.dataset.type;
       categoryBtns.forEach(b => b.classList.toggle('active', b === btn));
-      // 学年別範囲は算数(算数を含む達人コースも)にのみ関係する
+      // 学年別範囲は、それぞれ算数・漢字(を含む達人コース)にのみ関係する
       arithGradeRowEl.classList.toggle('hidden', currentType !== 'arith' && currentType !== 'master');
+      kanjiGradeRowEl.classList.toggle('hidden', currentType !== 'kanji' && currentType !== 'master');
     });
   });
 
-  gradeBtns.forEach(btn => {
+  arithGradeBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       arithGrade = btn.dataset.grade;
-      gradeBtns.forEach(b => b.classList.toggle('active', b === btn));
+      arithGradeBtns.forEach(b => b.classList.toggle('active', b === btn));
+    });
+  });
+
+  kanjiGradeBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      kanjiGrade = btn.dataset.grade;
+      kanjiGradeBtns.forEach(b => b.classList.toggle('active', b === btn));
     });
   });
 
