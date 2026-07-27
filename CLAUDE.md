@@ -18,6 +18,8 @@
 - コース選択画面から記録をクリア可能(確認ダイアログあり)
 - 正解/不正解でそれぞれ異なる効果音を再生(Web Audio APIで生成、音声ファイル不要)
 - コース選択画面で効果音のオン/オフを切り替え可能(localStorageに保存)
+- クイズ中はいつでも「やめる」でコース選択に戻れる
+- ライト/ダークの両テーマに対応(`prefers-color-scheme`)
 - ビルド不要。`index.html` をブラウザで開くだけで動く静的Webアプリ
 
 ## ファイル構成
@@ -32,14 +34,14 @@ quiz-app/
 
 ## 主要ロジック(script.js)
 
-- `currentType` — `'arith' | 'riddle' | 'kanji' | 'pref' | 'map' | 'ms' | 'master'`。カテゴリボタン(`.category-btn`の`data-type`)で切り替わる。`master`(達人)は設問ごとにカテゴリを抽選して混ぜる特殊コース
+- `currentType` — `'arith' | 'riddle' | 'kanji' | 'pref' | 'map' | 'ms' | 'master'`。カテゴリボタン(`#categoryRow`内`.segmented-btn`の`data-type`)で切り替わる。`master`(達人)は設問ごとにカテゴリを抽選して混ぜる特殊コース
 - `KANJI_DATA` — 教育漢字1026字のデータ。各要素は`[漢字, 学年, 画数, [読み方の候補...]]`。出典はKANJIDIC2(Electronic Dictionary Research and Development Group、CC BY-SA)で、学年別漢字配当表の現行版(2020年施行、1026字)と字数が一致することを確認済み
 - `PREF_DATA` / `REGIONS` — 47都道府県のデータ。各要素は`[都道府県名, 県庁所在地, 県庁所在地のひらがな読み, 地方キー]`。県庁所在地は four4to6/pref_lat_lon(MIT License)のデータを、地方区分(北海道/東北/関東/中部/近畿/中国/四国/九州)は標準的な学校教育の区分を参照して作成
 - `MAP_SYMBOLS` — 地図記号30種のデータ。各要素は`{name, svg}`。`svg`は国土地理院「地図記号一覧」ページの公式アイコン画像を目視で参照し、独自に描き起こしたSVGパス(公式画像そのものの複製ではない)
 - `MS_DATA` — モビルスーツクイズの問題バンク(21件)。各要素は`{q: 説明文, a: 正解の機体名, code: 型式番号}`。説明文は機体の一般的な特徴を独自に要約したもので、公式のプロフィール文や画像・シルエットは使用していない。`code`はRX-78-2のような公式の型式番号(事実情報)
-- `arithGrade` — `'low'(1〜2年生) | 'mid'(3年生) | 'high'(4年生)`。学年ボタン(`#arithGradeRow`内`.grade-btn`の`data-grade`)で切り替わる。算数(および算数を含む達人コース)選択時のみ`#arithGradeRow`が表示される
+- `arithGrade` — `'low'(1〜2年生) | 'mid'(3年生) | 'high'(4年生)`。学年ボタン(`#arithGradeRow`内`.segmented-btn`の`data-grade`)で切り替わる。算数(および算数を含む達人コース)選択時のみ`#arithGradeField`(ラベルを含む行)が表示される
 - `ARITH_GRADES` — 学年ごとの演算子セットと数値範囲の定義。学習指導要領の各学年の内容を目安に設定(例: 1〜2年生はわり算なし・九九の範囲、4年生は2〜3桁×2桁のかけ算や2桁の数でわるわり算まで)
-- `kanjiGrade` — `'low'(1〜2年生) | 'mid'(3〜4年生) | 'high'(5〜6年生)`。学年ボタン(`#kanjiGradeRow`内`.grade-btn`の`data-grade`)で切り替わる。漢字(および漢字を含む達人コース)選択時のみ`#kanjiGradeRow`が表示される。`KANJI_GRADE_RANGES`で学年帯→学年の範囲(例: `mid`→3,4)を定義し、`getKanjiBank()`が`KANJI_DATA`をその学年範囲でフィルタする
+- `kanjiGrade` — `'low'(1〜2年生) | 'mid'(3〜4年生) | 'high'(5〜6年生)`。学年ボタン(`#kanjiGradeRow`内`.segmented-btn`の`data-grade`)で切り替わる。漢字(および漢字を含む達人コース)選択時のみ`#kanjiGradeField`(ラベルを含む行)が表示される。`KANJI_GRADE_RANGES`で学年帯→学年の範囲(例: `mid`→3,4)を定義し、`getKanjiBank()`が`KANJI_DATA`をその学年範囲でフィルタする
 - `generateSet()` — `currentType`に応じて出題を生成
   - `arith`: `generateArithQuestion()`で`arithGrade`に応じた`ARITH_GRADES`の範囲から毎回ランダム生成。減算は常に非負、除算は常に割り切れる組み合わせのみになるよう制約
   - `riddle`: `RIDDLES`配列(100問、`{q, a: [正解表記の配列]}`)から`sampleFromBank()`でTOTAL問抽出。子ども向けなぞなぞサイトを参考に、単一の短い答えで判定できるものを選んで作成
@@ -53,6 +55,8 @@ quiz-app/
   - `symbol`: `questionEl.innerHTML`にSVGアイコン(`.symbol-svg`)とキャプションを描画
   - `ms-choice`: マイク・テキスト入力(`#controls`)を隠し、`#choiceList`に4つの選択肢ボタンを動的生成。クリックで直接`submitAnswer()`を呼ぶ
   - それ以外: `textContent`で通常の問題文を表示
+  - 問題文のサイズは3段階。算数はクラス無し(最大)、それ以外は18文字以下なら`medium-text`、超えるなら`long-text`。文字数だけだと算数の式(「655 + 396 =」は11文字)と日本語の問い(「「板」の読み方は?」は9文字)を区別できないため、まずタイプで分けている
+  - `replayAnimation()`で毎問フェードイン(`q-enter`)、採点時は正解`feedback-correct`/不正解`feedback-wrong`のアニメーションを再生する
 - `extractNumber(raw)` — 算数専用。音声認識/テキスト入力の文字列から数値を抽出
   - 半角/全角の算用数字に対応
   - 簡易的な漢数字パーサ(一〜九、十、百の組み合わせ、0〜999程度)にも対応
@@ -61,13 +65,24 @@ quiz-app/
 - `isTextAnswerCorrect(raw, accepted)` — なぞなぞ・漢字の読み方問題専用。記号除去・カタカナ→ひらがな変換・小文字化した上で完全一致 or 部分一致(発話のゆらぎを許容)で判定
 - `submitAnswer()` — `questions[current].type`が`arith`/`kanji-stroke`(数値)かそれ以外(テキスト)かで分岐して採点し、2秒後に次の問題または結果画面へ遷移。`ms-choice`の選択肢ボタンもクリック時にこの関数を直接呼ぶ
 - `setInputsDisabled()` — 連打防止用に送信ボタン・テキスト入力・マイクに加え、`#choiceList`内の選択肢ボタンもまとめて無効化する
+- `nextTimer` — 次の設問へ進める`setTimeout`のID。「やめる」で中断したときに`clearTimeout`しないと、コース選択に戻った直後にタイマーが発火してクイズ画面へ戻ってしまうため必ず保持・クリアする
+- 四択の採点後は、正解のボタンに`is-correct`、選んだ誤答に`is-wrong`を付けて色で示す(`disabled`より優先させるCSSを併記)。選択式は押したボタン自体が答えなので`#answerDisplay`への復唱は行わない
 - `TOTAL` — コース選択(`.course-btn`の`data-count`)で決まる出題数
 - `showResult()` — `localStorage`のキー`sakitoQuizBestScores`に `${currentType}-${TOTAL}` (例: `riddle-10`) ごとのベストスコアを保存。算数は`arith-${arithGrade}-${TOTAL}`、漢字は`kanji-${kanjiGrade}-${TOTAL}` (例: `arith-high-10`、`kanji-low-5`)として学年ごとに分けて記録する。`isBetterScore()`で正解数→所要時間の順に比較
+
+## デザイン方針(style.css)
+
+- 色・角丸・影は`:root`のCSS変数に集約し、`@media (prefers-color-scheme: dark)`で同名の変数を上書きするだけでダークモードが成立するようにしている。個別セレクタに生の色を書かない
+- コース選択画面の各コントロールは`.field`(ラベル+本体)でまとめる。カテゴリ・学年・問題数の3行が並ぶため、ラベルが無いとどれを選んでいるのか判別できない
+- カテゴリは項目数が3の倍数でないため、`.segmented--wrap`で等分割せず自然幅で折り返す(等分割すると最終行の項目だけ不自然に引き伸ばされる)
+- `prefers-reduced-motion: reduce`ですべてのアニメーション・トランジションを実質無効化する
 
 ## 動作確認済み事項
 
 - 問題生成を20,000回シミュレーションし、減算の負値・除算の割り切れないケースが0件であることを確認済み
 - `extractNumber()` の主要パターン(算用数字/全角数字/漢数字/マイナス表現/文中の数字)をNode.jsでユニットテスト済み(10/10 pass)
+- DOMを模したスタブ上で`script.js`を実行する回帰テストスイートで、全カテゴリ・全学年の出題範囲と採点、連打防止、中断時のタイマー停止、四択の正誤マーキング、効果音のオン/オフ、マイク解放、ベストスコアの保存キーを検証(71項目 pass)
+- ローカルHTTPサーバ(`python3 -m http.server`)経由でライト/ダーク両テーマ、モバイル幅、キーボード表示時のcompactモードを実機同様に目視確認
 
 ## 既知の制約 / TODO候補
 

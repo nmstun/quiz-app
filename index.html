@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
+<meta name="theme-color" content="#f5f7fb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12151d" media="(prefers-color-scheme: dark)">
 <title>咲登クイズ</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -10,88 +12,110 @@
 
 <div class="app-version" id="appVersion"></div>
 
-<div class="card">
-  <h1>咲登クイズ</h1>
-  <div class="sub">音声で答えよう。コースを選んでスタート。</div>
+<main class="card">
+  <header class="card-head">
+    <h1>咲登クイズ</h1>
+  </header>
 
   <div id="courseView">
-    <div class="category-row">
-      <button class="category-btn active" data-type="arith">算数</button>
-      <button class="category-btn" data-type="kanji">漢字</button>
-      <button class="category-btn" data-type="pref">都道府県</button>
-      <button class="category-btn" data-type="map">地図記号</button>
-      <button class="category-btn" data-type="riddle">なぞなぞ</button>
-      <button class="category-btn" data-type="ms">モビルスーツ</button>
-      <button class="category-btn" data-type="master">達人</button>
+    <p class="sub">音声で答えよう。コースを選んでスタート。</p>
+    <div class="field">
+      <span class="field-label">カテゴリ</span>
+      <div class="segmented segmented--wrap" id="categoryRow" role="group" aria-label="カテゴリ">
+        <button class="segmented-btn active" data-type="arith" aria-pressed="true">算数</button>
+        <button class="segmented-btn" data-type="kanji" aria-pressed="false">漢字</button>
+        <button class="segmented-btn" data-type="pref" aria-pressed="false">都道府県</button>
+        <button class="segmented-btn" data-type="map" aria-pressed="false">地図記号</button>
+        <button class="segmented-btn" data-type="riddle" aria-pressed="false">なぞなぞ</button>
+        <button class="segmented-btn" data-type="ms" aria-pressed="false">モビルスーツ</button>
+        <button class="segmented-btn" data-type="master" aria-pressed="false">達人</button>
+      </div>
     </div>
-    <div class="grade-row" id="arithGradeRow">
-      <button class="grade-btn" data-grade="low">1〜2年生</button>
-      <button class="grade-btn active" data-grade="mid">3年生</button>
-      <button class="grade-btn" data-grade="high">4年生</button>
+
+    <div class="field" id="arithGradeField">
+      <span class="field-label">算数のはんい</span>
+      <div class="segmented" id="arithGradeRow" role="group" aria-label="算数の学年">
+        <button class="segmented-btn" data-grade="low" aria-pressed="false">1〜2年生</button>
+        <button class="segmented-btn active" data-grade="mid" aria-pressed="true">3年生</button>
+        <button class="segmented-btn" data-grade="high" aria-pressed="false">4年生</button>
+      </div>
     </div>
-    <div class="grade-row hidden" id="kanjiGradeRow">
-      <button class="grade-btn" data-grade="low">1〜2年生</button>
-      <button class="grade-btn active" data-grade="mid">3〜4年生</button>
-      <button class="grade-btn" data-grade="high">5〜6年生</button>
+
+    <div class="field hidden" id="kanjiGradeField">
+      <span class="field-label">漢字のはんい</span>
+      <div class="segmented" id="kanjiGradeRow" role="group" aria-label="漢字の学年">
+        <button class="segmented-btn" data-grade="low" aria-pressed="false">1〜2年生</button>
+        <button class="segmented-btn active" data-grade="mid" aria-pressed="true">3〜4年生</button>
+        <button class="segmented-btn" data-grade="high" aria-pressed="false">5〜6年生</button>
+      </div>
     </div>
-    <div class="course-list">
-      <button class="course-btn" data-count="5">
-        <span class="course-name">みじかい</span>
-        <span class="course-count">5問</span>
-      </button>
-      <button class="course-btn" data-count="10">
-        <span class="course-name">ふつう</span>
-        <span class="course-count">10問</span>
-      </button>
-      <button class="course-btn" data-count="20">
-        <span class="course-name">ながい</span>
-        <span class="course-count">20問</span>
-      </button>
+
+    <div class="field">
+      <span class="field-label">もんすう</span>
+      <div class="course-list">
+        <button class="course-btn" data-count="5">
+          <span class="course-name">みじかい</span>
+          <span class="course-count">5問</span>
+        </button>
+        <button class="course-btn" data-count="10">
+          <span class="course-name">ふつう</span>
+          <span class="course-count">10問</span>
+        </button>
+        <button class="course-btn" data-count="20">
+          <span class="course-name">ながい</span>
+          <span class="course-count">20問</span>
+        </button>
+      </div>
     </div>
+
     <div class="settings-row">
-      <button class="settings-link-btn" id="seToggleBtn">効果音: オン</button>
-      <button class="settings-link-btn clear-scores-btn" id="clearScoresBtn">記録をクリア</button>
+      <button class="chip-btn" id="seToggleBtn">効果音: オン</button>
+      <button class="chip-btn chip-btn--danger" id="clearScoresBtn">記録をクリア</button>
     </div>
-    <div class="clear-scores-msg" id="clearScoresMsg"></div>
+    <p class="clear-scores-msg" id="clearScoresMsg" role="status"></p>
   </div>
 
   <div id="quizView" class="hidden">
-    <div class="progress" id="progress"></div>
+    <div class="quiz-head">
+      <button class="ghost-btn" id="quitBtn">← やめる</button>
+      <span class="progress-count" id="progressCount"></span>
+    </div>
+    <div class="progress" id="progress" aria-hidden="true"></div>
 
-    <div class="question-box">
+    <div class="question-box" id="questionBox">
       <div class="question" id="question">--</div>
     </div>
 
-    <div class="status-line" id="statusLine"></div>
-    <div class="answer-display" id="answerDisplay">&nbsp;</div>
+    <p class="status-line" id="statusLine" role="status" aria-live="polite"></p>
+    <p class="answer-display" id="answerDisplay">&nbsp;</p>
 
     <div class="controls" id="controls">
       <button class="mic-btn" id="micBtn">
-        <span id="micIcon">🎤</span>
+        <span id="micIcon" aria-hidden="true">🎤</span>
         <span id="micLabel">話して答える</span>
       </button>
       <div class="text-fallback">
-        <input type="text" id="textInput" inputmode="numeric" placeholder="数字で入力(音声が使えない場合)">
+        <input type="text" id="textInput" inputmode="numeric" autocomplete="off" placeholder="数字で入力" aria-label="答えを入力">
         <button id="submitBtn">送信</button>
       </div>
     </div>
 
-    <div class="choice-list hidden" id="choiceList"></div>
+    <div class="choice-list hidden" id="choiceList" role="group" aria-label="答えの選択肢"></div>
 
-    <div class="note" id="note"></div>
+    <p class="note" id="note"></p>
   </div>
 
   <div id="resultView" class="result hidden">
-    <div class="sub">結果</div>
+    <span class="field-label result-label" id="resultLabel">結果</span>
     <div class="score" id="scoreText">0/5</div>
-    <div class="msg" id="scoreMsg"></div>
-    <div class="time-text" id="timeText"></div>
-    <div class="best-score" id="bestScoreText"></div>
+    <p class="msg" id="scoreMsg"></p>
+    <p class="time-text" id="timeText"></p>
+    <p class="best-score" id="bestScoreText"></p>
     <ul class="result-list" id="resultList"></ul>
-    <button class="retry-btn" id="retryBtn">もう一度挑戦</button>
-    <button class="course-change-btn" id="courseChangeBtn">別のコースを選ぶ</button>
+    <button class="primary-btn" id="retryBtn">もう一度挑戦</button>
+    <button class="ghost-btn ghost-btn--block" id="courseChangeBtn">別のコースを選ぶ</button>
   </div>
-</div>
+</main>
 
 <script src="script.js"></script>
 </body>

@@ -1,5 +1,5 @@
 (function () {
-  const APP_VERSION = '0.3.0';
+  const APP_VERSION = '0.4.0';
   let TOTAL = 5;
   const NEXT_QUESTION_DELAY_MS = 2000;
   let questions = [];
@@ -8,6 +8,7 @@
   let recognition = null;
   let recognizing = false;
   let awaitingNext = false; // 正誤判定後、次の設問に移るまでの間は新たな回答を受け付けない
+  let nextTimer = null; // 次の設問へ進めるタイマー。中断時に確実に止めるため保持する
   let quizStartTime = 0;
   let currentType = 'arith'; // 'arith' | 'riddle' | 'kanji' | 'pref' | 'map' | 'ms' | 'master'
 
@@ -17,6 +18,8 @@
   const appVersionEl = $('appVersion');
   if (appVersionEl) appVersionEl.textContent = 'v' + APP_VERSION;
   const progressEl = $('progress');
+  const progressCountEl = $('progressCount');
+  const questionBoxEl = $('questionBox');
   const questionEl = $('question');
   const statusLineEl = $('statusLine');
   const answerDisplayEl = $('answerDisplay');
@@ -35,18 +38,20 @@
   const scoreMsg = $('scoreMsg');
   const timeTextEl = $('timeText');
   const bestScoreEl = $('bestScoreText');
+  const resultLabelEl = $('resultLabel');
   const resultList = $('resultList');
   const retryBtn = $('retryBtn');
   const courseChangeBtn = $('courseChangeBtn');
+  const quitBtn = $('quitBtn');
   const courseBtns = document.querySelectorAll('.course-btn');
-  const categoryBtns = document.querySelectorAll('.category-btn');
+  const categoryBtns = $('categoryRow').querySelectorAll('.segmented-btn');
   const clearScoresBtn = $('clearScoresBtn');
   const clearScoresMsgEl = $('clearScoresMsg');
   const seToggleBtn = $('seToggleBtn');
-  const arithGradeRowEl = $('arithGradeRow');
-  const arithGradeBtns = arithGradeRowEl.querySelectorAll('.grade-btn');
-  const kanjiGradeRowEl = $('kanjiGradeRow');
-  const kanjiGradeBtns = kanjiGradeRowEl.querySelectorAll('.grade-btn');
+  const arithGradeFieldEl = $('arithGradeField');
+  const arithGradeBtns = $('arithGradeRow').querySelectorAll('.segmented-btn');
+  const kanjiGradeFieldEl = $('kanjiGradeField');
+  const kanjiGradeBtns = $('kanjiGradeRow').querySelectorAll('.segmented-btn');
 
   const CATEGORY_LABELS = { arith: '算数', kanji: '漢字', pref: '都道府県', map: '地図記号', riddle: 'なぞなぞ', ms: 'モビルスーツ', master: '達人' };
   const ARITH_GRADE_LABELS = { low: '1〜2年生', mid: '3年生', high: '4年生' };
@@ -386,6 +391,15 @@
       }
       progressEl.appendChild(dot);
     }
+    // ドットだけでは残り問題数が読み取りにくいため、数字でも示す
+    progressCountEl.textContent = `${Math.min(current + 1, TOTAL)} / ${TOTAL}`;
+  }
+
+  // 直前のクラスを消してから付け直し、同じアニメーションを毎問再生させる
+  function replayAnimation(el, className) {
+    el.classList.remove('q-enter', 'feedback-correct', 'feedback-wrong');
+    void el.offsetWidth; // リフローを挟んでアニメーションをリセット
+    el.classList.add(className);
   }
 
   function renderQuestion() {
@@ -395,20 +409,25 @@
     statusLineEl.className = 'status-line';
     answerDisplayEl.innerHTML = '&nbsp;';
     textInput.value = '';
+    replayAnimation(questionBoxEl, 'q-enter');
     const q = questions[current];
+    questionEl.classList.remove('medium-text', 'long-text');
     if (q.type === 'symbol') {
       questionEl.innerHTML = `<svg class="symbol-svg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">${q.svg}</svg><div class="symbol-caption">${q.text}</div>`;
-      questionEl.classList.remove('long-text');
     } else {
       questionEl.textContent = q.text;
-      questionEl.classList.toggle('long-text', q.text.length > 10);
+      // 文字数だけでは算数の式(「655 + 396 =」など)と日本語の文を区別できないため、
+      // 算数は常に大きく、それ以外は長さに応じて2段階に落とす
+      if (q.type !== 'arith') {
+        questionEl.classList.add(q.text.length > 18 ? 'long-text' : 'medium-text');
+      }
     }
     if (q.type === 'arith' || q.type === 'kanji-stroke') {
       textInput.inputMode = 'numeric';
-      textInput.placeholder = '数字で入力(音声が使えない場合)';
+      textInput.placeholder = '数字で入力';
     } else {
       textInput.inputMode = 'text';
-      textInput.placeholder = '答えを入力(音声が使えない場合)';
+      textInput.placeholder = '答えを入力';
     }
     if (q.type === 'ms-choice') {
       controlsEl.classList.add('hidden');
@@ -418,6 +437,7 @@
         const btn = document.createElement('button');
         btn.className = 'choice-btn';
         btn.textContent = choice;
+        btn.dataset.choice = choice; // 回答後に正解／誤答を色付けするため保持
         btn.addEventListener('click', () => {
           unlockAudio();
           submitAnswer(choice, 'choice');
@@ -564,7 +584,10 @@
   function submitAnswer(rawText, source) {
     if (awaitingNext) return; // 次の設問への遷移待ち中は連打を無視
 
-    answerDisplayEl.textContent = rawText ? `認識結果: 「${rawText}」` : '';
+    // 選択式はボタンの色分けで選んだ答えが分かるので、あえて繰り返さない
+    answerDisplayEl.textContent = (rawText && source !== 'choice')
+      ? `${source === 'voice' ? '認識結果' : '入力'}: 「${rawText}」`
+      : '';
 
     const question = questions[current];
     let isCorrect, userAnswerDisplay, correctAnswerDisplay;
@@ -606,11 +629,19 @@
       : `不正解… 正解は ${correctAnswerDisplay}`;
     statusLineEl.className = 'status-line ' + (isCorrect ? 'correct' : 'wrong');
 
+    // 選択式は、どれが正解でどれを選んだのかをボタン自体にも示す
+    Array.from(choiceListEl.children).forEach(btn => {
+      if (btn.dataset.choice === String(correctAnswerDisplay)) btn.classList.add('is-correct');
+      else if (!isCorrect && btn.dataset.choice === String(userAnswerDisplay)) btn.classList.add('is-wrong');
+    });
+
+    replayAnimation(questionBoxEl, isCorrect ? 'feedback-correct' : 'feedback-wrong');
     isCorrect ? playCorrectSound() : playWrongSound();
 
     renderProgress();
 
-    setTimeout(() => {
+    nextTimer = setTimeout(() => {
+      nextTimer = null;
       current++;
       if (current >= TOTAL) {
         showResult();
@@ -745,6 +776,7 @@
     const correctCount = results.filter(r => r.correct).length;
     const timeMs = Date.now() - quizStartTime;
     scoreText.textContent = `${correctCount}/${TOTAL}`;
+    scoreText.classList.toggle('is-perfect', correctCount === TOTAL);
     timeTextEl.textContent = `所要時間: ${formatDuration(timeMs)}`;
 
     let msg;
@@ -771,9 +803,12 @@
       scores[courseKey] = thisResult;
       saveBestScores(scores);
     }
+    // どのコースの結果かは上部ラベルで示し、記録は1行に収まる短さに保つ
+    resultLabelEl.textContent = `${categoryLabel}・${TOTAL}問`;
     const best = scores[courseKey];
-    bestScoreEl.textContent = `ベストスコア(${categoryLabel}・${TOTAL}問コース): ${best.correct}/${best.total}・${formatDuration(best.timeMs)}`
-      + (isNewBest ? '(新記録！)' : '');
+    bestScoreEl.textContent = (isNewBest ? '🏆 新記録！ ベスト ' : 'ベスト ')
+      + `${best.correct}/${best.total}・${formatDuration(best.timeMs)}`;
+    bestScoreEl.classList.toggle('is-new', isNewBest);
 
     resultList.innerHTML = '';
     results.forEach(r => {
@@ -791,28 +826,51 @@
     courseView.classList.remove('hidden');
   });
 
+  // 選択中のボタンだけ active + aria-pressed=true にする
+  function setActive(btns, selected) {
+    btns.forEach(b => {
+      const isSelected = b === selected;
+      b.classList.toggle('active', isSelected);
+      b.setAttribute('aria-pressed', String(isSelected));
+    });
+  }
+
   categoryBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       currentType = btn.dataset.type;
-      categoryBtns.forEach(b => b.classList.toggle('active', b === btn));
+      setActive(categoryBtns, btn);
       // 学年別範囲は、それぞれ算数・漢字(を含む達人コース)にのみ関係する
-      arithGradeRowEl.classList.toggle('hidden', currentType !== 'arith' && currentType !== 'master');
-      kanjiGradeRowEl.classList.toggle('hidden', currentType !== 'kanji' && currentType !== 'master');
+      arithGradeFieldEl.classList.toggle('hidden', currentType !== 'arith' && currentType !== 'master');
+      kanjiGradeFieldEl.classList.toggle('hidden', currentType !== 'kanji' && currentType !== 'master');
     });
   });
 
   arithGradeBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       arithGrade = btn.dataset.grade;
-      arithGradeBtns.forEach(b => b.classList.toggle('active', b === btn));
+      setActive(arithGradeBtns, btn);
     });
   });
 
   kanjiGradeBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       kanjiGrade = btn.dataset.grade;
-      kanjiGradeBtns.forEach(b => b.classList.toggle('active', b === btn));
+      setActive(kanjiGradeBtns, btn);
     });
+  });
+
+  // クイズ中に中断してコース選択へ戻る。保留中のタイマーを止めないと
+  // 戻った後に次の設問へ進んでしまうため、必ずクリアする
+  quitBtn.addEventListener('click', () => {
+    if (nextTimer !== null) {
+      clearTimeout(nextTimer);
+      nextTimer = null;
+    }
+    awaitingNext = false;
+    setInputsDisabled(true); // 進行中の音声認識を確実に止める
+    quizView.classList.add('hidden');
+    resultView.classList.add('hidden');
+    courseView.classList.remove('hidden');
   });
 
   courseBtns.forEach(btn => {
@@ -824,6 +882,10 @@
   });
 
   function startQuiz() {
+    if (nextTimer !== null) {
+      clearTimeout(nextTimer);
+      nextTimer = null;
+    }
     current = 0;
     results = [];
     quizStartTime = Date.now();
