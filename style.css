@@ -74,6 +74,33 @@ h1 {
   box-shadow: 0 2px 6px rgba(30, 40, 80, 0.1);
 }
 
+.grade-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 16px;
+  background: #eef1fa;
+  border-radius: 12px;
+  padding: 4px;
+}
+.grade-btn {
+  padding: 8px 4px;
+  border-radius: 9px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.grade-btn:hover { color: var(--text); }
+.grade-btn.active {
+  background: var(--card);
+  color: var(--primary-dark);
+  box-shadow: 0 2px 6px rgba(30, 40, 80, 0.1);
+}
+
 .course-list {
   display: flex;
   flex-direction: column;

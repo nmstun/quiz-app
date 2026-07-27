@@ -5,7 +5,7 @@
 ## 概要
 
 - カテゴリ(算数/漢字/都道府県/地図記号/なぞなぞ/モビルスーツ/達人)と問題数コース(みじかい5問/ふつう10問/ながい20問)を選んで開始
-- 算数: 四則演算(+ - × ÷)のランダムな問題を出題
+- 算数: 四則演算(+ - × ÷)のランダムな問題を出題。学年別の出題範囲(1〜2年生/3年生/4年生)を選択可能
 - 漢字: 小学校で習う漢字1026字(教育漢字、学年別漢字配当表)から出題。読み方問題と画数問題を約7:3で混ぜて出題
 - 都道府県: 47都道府県から出題。県庁所在地問題と、何地方に属するか問う問題を約7:3で混ぜて出題
 - 地図記号: 国土地理院「地図記号一覧」を参考に作成したSVGアイコン30種(市役所・郵便局・神社・田・温泉など)を表示し、名称を答える
@@ -37,8 +37,10 @@ quiz-app/
 - `PREF_DATA` / `REGIONS` — 47都道府県のデータ。各要素は`[都道府県名, 県庁所在地, 県庁所在地のひらがな読み, 地方キー]`。県庁所在地は four4to6/pref_lat_lon(MIT License)のデータを、地方区分(北海道/東北/関東/中部/近畿/中国/四国/九州)は標準的な学校教育の区分を参照して作成
 - `MAP_SYMBOLS` — 地図記号30種のデータ。各要素は`{name, svg}`。`svg`は国土地理院「地図記号一覧」ページの公式アイコン画像を目視で参照し、独自に描き起こしたSVGパス(公式画像そのものの複製ではない)
 - `MS_DATA` — モビルスーツクイズの問題バンク(21件)。各要素は`{q: 説明文, a: 正解の機体名, code: 型式番号}`。説明文は機体の一般的な特徴を独自に要約したもので、公式のプロフィール文や画像・シルエットは使用していない。`code`はRX-78-2のような公式の型式番号(事実情報)
+- `arithGrade` — `'low'(1〜2年生) | 'mid'(3年生) | 'high'(4年生)`。学年ボタン(`.grade-btn`の`data-grade`)で切り替わる。算数(および算数を含む達人コース)選択時のみ`#arithGradeRow`が表示される
+- `ARITH_GRADES` — 学年ごとの演算子セットと数値範囲の定義。学習指導要領の各学年の内容を目安に設定(例: 1〜2年生はわり算なし・九九の範囲、4年生は2〜3桁×2桁のかけ算や2桁の数でわるわり算まで)
 - `generateSet()` — `currentType`に応じて出題を生成
-  - `arith`: `generateArithQuestion()`で毎回ランダム生成。減算は常に非負、除算は常に割り切れる組み合わせのみになるよう制約
+  - `arith`: `generateArithQuestion()`で`arithGrade`に応じた`ARITH_GRADES`の範囲から毎回ランダム生成。減算は常に非負、除算は常に割り切れる組み合わせのみになるよう制約
   - `riddle`: `RIDDLES`配列(100問、`{q, a: [正解表記の配列]}`)から`sampleFromBank()`でTOTAL問抽出。子ども向けなぞなぞサイトを参考に、単一の短い答えで判定できるものを選んで作成
   - `kanji`: `KANJI_DATA`から`sampleFromBank()`でTOTAL件抽出し、`generateKanjiQuestion()`で`STROKE_QUESTION_RATIO`(0.3)の確率で画数問題(`kanji-stroke`)、それ以外は読み方問題(`kanji-reading`)に変換
   - `pref`: `PREF_DATA`から`sampleFromBank()`でTOTAL件抽出し、`generatePrefQuestion()`で`PREF_REGION_QUESTION_RATIO`(0.3)の確率で地方問題(`pref-region`)、それ以外は県庁所在地問題(`pref-capital`)に変換
@@ -59,7 +61,7 @@ quiz-app/
 - `submitAnswer()` — `questions[current].type`が`arith`/`kanji-stroke`(数値)かそれ以外(テキスト)かで分岐して採点し、2秒後に次の問題または結果画面へ遷移。`ms-choice`の選択肢ボタンもクリック時にこの関数を直接呼ぶ
 - `setInputsDisabled()` — 連打防止用に送信ボタン・テキスト入力・マイクに加え、`#choiceList`内の選択肢ボタンもまとめて無効化する
 - `TOTAL` — コース選択(`.course-btn`の`data-count`)で決まる出題数
-- `showResult()` — `localStorage`のキー`sakitoQuizBestScores`に `${currentType}-${TOTAL}` (例: `riddle-10`) ごとのベストスコアを保存。`isBetterScore()`で正解数→所要時間の順に比較
+- `showResult()` — `localStorage`のキー`sakitoQuizBestScores`に `${currentType}-${TOTAL}` (例: `riddle-10`) ごとのベストスコアを保存。算数のみ`arith-${arithGrade}-${TOTAL}` (例: `arith-high-10`)として学年ごとに分けて記録する。`isBetterScore()`で正解数→所要時間の順に比較
 
 ## 動作確認済み事項
 
@@ -70,7 +72,7 @@ quiz-app/
 
 - [ ] ひらがな読み上げ(「じゅうさん」等)の数値変換に対応する
 - [ ] 音声認識非対応ブラウザ(Firefox, Safari一部バージョン)での挙動を実機確認する
-- [ ] 難易度選択(桁数・演算子の絞り込み)を追加する(問題数のコース分けは実装済み)
+- [x] 難易度選択(桁数・演算子の絞り込み)を追加する → 算数の学年別出題範囲(`arithGrade`)として実装済み
 - [ ] スコア履歴(過去n回分の推移など)の保存。現状はコースごとのベストスコアのみ
 - [ ] スマホでの音声入力の権限リクエストUXを確認する
 - [ ] PWA化(オフライン対応・ホーム画面追加)の検討

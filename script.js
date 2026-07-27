@@ -1,5 +1,5 @@
 (function () {
-  const APP_VERSION = '0.1.0';
+  const APP_VERSION = '0.2.0';
   let TOTAL = 5;
   const NEXT_QUESTION_DELAY_MS = 2000;
   let questions = [];
@@ -43,8 +43,11 @@
   const clearScoresBtn = $('clearScoresBtn');
   const clearScoresMsgEl = $('clearScoresMsg');
   const seToggleBtn = $('seToggleBtn');
+  const arithGradeRowEl = $('arithGradeRow');
+  const gradeBtns = document.querySelectorAll('.grade-btn');
 
   const CATEGORY_LABELS = { arith: '算数', kanji: '漢字', pref: '都道府県', map: '地図記号', riddle: 'なぞなぞ', ms: 'モビルスーツ', master: '達人' };
+  const ARITH_GRADE_LABELS = { low: '1〜2年生', mid: '3年生', high: '4年生' };
 
   // ---- なぞなぞ・漢字クイズの問題バンク ----
   const RIDDLES = [
@@ -211,25 +214,56 @@
     return pool.slice(0, n);
   }
 
+  // 学年ごとの出題範囲(学習指導要領の各学年の学習内容を目安に設定)
+  let arithGrade = 'mid'; // 'low'(1〜2年生) | 'mid'(3年生) | 'high'(4年生)
+  const ARITH_GRADES = {
+    low: {
+      ops: ['+', '-', '×'], // わり算は3年生からのため対象外
+      pair(op) {
+        if (op === '×') return [randInt(1, 9), randInt(1, 9)]; // 九九の範囲
+        return [randInt(1, 100), randInt(1, 100)];
+      }
+    },
+    mid: {
+      ops: ['+', '-', '×', '÷'],
+      pair(op) {
+        if (op === '×') return [randInt(2, 99), randInt(2, 9)]; // 2桁×1桁
+        if (op === '÷') {
+          const b = randInt(2, 9); // 1桁の数でわる(あまりなし)
+          return [b * randInt(2, 20), b];
+        }
+        return [randInt(1, 999), randInt(1, 999)]; // 3桁までの加減算
+      }
+    },
+    high: {
+      ops: ['+', '-', '×', '÷'],
+      pair(op) {
+        if (op === '×') return [randInt(10, 999), randInt(10, 99)]; // 2〜3桁×2桁
+        if (op === '÷') {
+          const b = randInt(2, 99); // 2桁の数でわる(あまりなし)
+          return [b * randInt(2, 50), b];
+        }
+        return [randInt(1, 9999), randInt(1, 9999)]; // 4桁までの加減算
+      }
+    }
+  };
+
   function generateArithQuestion() {
-    const ops = ['+', '-', '×', '÷'];
+    const grade = ARITH_GRADES[arithGrade];
+    const ops = grade.ops;
     const op = ops[randInt(0, ops.length - 1)];
     let a, b, answer;
 
     if (op === '+' || op === '-') {
-      a = randInt(1, 50);
-      b = randInt(1, 50);
+      [a, b] = grade.pair(op);
       if (op === '-' && a < b) [a, b] = [b, a]; // 負の数を避ける
       answer = op === '+' ? a + b : a - b;
     } else if (op === '×') {
-      a = randInt(1, 12);
-      b = randInt(1, 12);
+      [a, b] = grade.pair(op);
       answer = a * b;
     } else { // ÷ 割り切れる組み合わせのみ
-      b = randInt(1, 9);
-      const q = randInt(1, 12);
-      a = b * q;
-      answer = q;
+      [a, b] = grade.pair(op);
+      answer = a / b;
     }
     return { type: 'arith', text: `${a} ${op} ${b} =`, answer };
   }
@@ -708,8 +742,12 @@
     else msg = '練習あるのみ。もう一度挑戦してみよう。';
     scoreMsg.textContent = msg;
 
+    // 算数は学年別に範囲が変わるため、ベストスコアも学年ごとに分けて記録する
+    const courseKey = currentType === 'arith' ? `arith-${arithGrade}-${TOTAL}` : `${currentType}-${TOTAL}`;
+    const categoryLabel = currentType === 'arith'
+      ? `算数・${ARITH_GRADE_LABELS[arithGrade]}`
+      : CATEGORY_LABELS[currentType];
     const scores = loadBestScores();
-    const courseKey = `${currentType}-${TOTAL}`;
     const thisResult = { correct: correctCount, total: TOTAL, timeMs };
     const prevBest = scores[courseKey];
     const isNewBest = !prevBest || isBetterScore(thisResult, prevBest);
@@ -718,7 +756,7 @@
       saveBestScores(scores);
     }
     const best = scores[courseKey];
-    bestScoreEl.textContent = `ベストスコア(${CATEGORY_LABELS[currentType]}・${TOTAL}問コース): ${best.correct}/${best.total}・${formatDuration(best.timeMs)}`
+    bestScoreEl.textContent = `ベストスコア(${categoryLabel}・${TOTAL}問コース): ${best.correct}/${best.total}・${formatDuration(best.timeMs)}`
       + (isNewBest ? '(新記録！)' : '');
 
     resultList.innerHTML = '';
@@ -741,6 +779,15 @@
     btn.addEventListener('click', () => {
       currentType = btn.dataset.type;
       categoryBtns.forEach(b => b.classList.toggle('active', b === btn));
+      // 学年別範囲は算数(算数を含む達人コースも)にのみ関係する
+      arithGradeRowEl.classList.toggle('hidden', currentType !== 'arith' && currentType !== 'master');
+    });
+  });
+
+  gradeBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      arithGrade = btn.dataset.grade;
+      gradeBtns.forEach(b => b.classList.toggle('active', b === btn));
     });
   });
 
