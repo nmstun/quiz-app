@@ -1,5 +1,5 @@
 (function () {
-  const APP_VERSION = '0.5.0';
+  const APP_VERSION = '0.6.0';
   let TOTAL = 5;
   const NEXT_QUESTION_DELAY_MS = 2000;
   let questions = [];
@@ -191,22 +191,39 @@
     { q: "バナージ・リンクスが搭乗する、覚醒すると白から金色に変化するガンダム", a: "ユニコーンガンダム", code: "RX-0" },
   ];
 
-  // カラフルピーチ(からぴち)は12人組のゲーム実況グループ。各要素は [メンバー名, メンバーカラー]。
-  // メンバー名は公式サイトのメンバーページ、カラーは複数のファンサイトで一致した内容のみを採用。
-  // 実在の人物のため、公式の紹介文の引用や外見の描写はせず、事実として確認できる項目だけを扱う。
+  // カラフルピーチ(からぴち)は12人組のゲーム実況グループ。
+  // 実在の人物を扱うため、収録するのは裏取りできた事実だけに限る。
+  //   birthday / zodiac / blood / like / weak … 公式サイトのメンバーページの記載そのまま
+  //     (blood の「夜型」「まるがた」「AO型」はグループ本人たちによる公式のネタ回答)
+  //   color … 公式サイトに記載が無いため、複数のファンサイトで12人分が完全に一致することを
+  //           確認したうえで採用
+  // 公式の紹介文をそのまま引用したり、外見を描写したりはしない。
   const KARAPICHI_MEMBERS = [
-    ['じゃぱぱ', 'みどり'],
-    ['のあ', 'ピンク'],
-    ['たっつん', 'きいろ'],
-    ['ゆあんくん', 'あか'],
-    ['シヴァ', 'きみどり'],
-    ['どぬく', 'しろ'],
-    ['うり', 'くろ'],
-    ['えと', 'オレンジ'],
-    ['ヒロ', 'はいいろ'],
-    ['なおきり', 'あお'],
-    ['もふ', 'むらさき'],
-    ['るな', 'みずいろ'],
+    { name: 'じゃぱぱ',   color: 'みどり',   birthday: '12月25日', zodiac: 'やぎ座',    blood: 'A型',     like: 'みんなと一緒にいること',                     weak: '歌うこと' , hex: '#35b45f' },
+    { name: 'のあ',       color: 'ピンク',   birthday: '9月18日',  zodiac: 'おとめ座',  blood: 'A型',     like: '人と居ること',                               weak: 'ホラー系' , hex: '#f47bb2' },
+    { name: 'たっつん',   color: 'きいろ',   birthday: '10月25日', zodiac: 'さそり座',  blood: 'B型',     like: 'ゲーム、昆虫観察、想像で魔法を撃つこと',     weak: '朝起きること、プレッシャーを感じること' , hex: '#f5cf3a' },
+    { name: 'ゆあんくん', color: 'あか',     birthday: '1月30日',  zodiac: 'みずがめ座', blood: 'B型',     like: 'パソコン',                                   weak: '建築' , hex: '#e34a4f' },
+    { name: 'シヴァ',     color: 'きみどり', birthday: '12月25日', zodiac: 'やぎ座',    blood: 'O型',     like: '辛い料理を食べること、ゲーム、パンツをこだわること', weak: '歌うこと' , hex: '#a9d63f' },
+    { name: 'どぬく',     color: 'しろ',     birthday: '8月17日',  zodiac: 'しし座',    blood: '夜型',    like: '刀を眺めること',                             weak: '勉強' , hex: '#fbfbfd' },
+    { name: 'うり',       color: 'くろ',     birthday: '12月19日', zodiac: 'いて座',    blood: 'A型',     like: '絵を描くこと・映画観賞・ゲーム',             weak: '勉強' , hex: '#20232b' },
+    { name: 'えと',       color: 'オレンジ', birthday: '10月7日',  zodiac: 'てんびん座', blood: 'B型',     like: 'ゲーム、絵を描く、歌うこと、一攫千金',       weak: '早寝早起き、スポーツ' , hex: '#f5852f' },
+    { name: 'ヒロ',       color: 'はいいろ', birthday: '8月9日',   zodiac: 'しし座',    blood: 'A型',     like: 'ゲーム、旅行',                               weak: '絵を描くこと' , hex: '#98a0ad' },
+    { name: 'なおきり',   color: 'あお',     birthday: '10月20日', zodiac: 'てんびん座', blood: 'AO型',    like: 'ホラー全般',                                 weak: '悪い子' , hex: '#2f74e0' },
+    { name: 'もふ',       color: 'むらさき', birthday: '10月14日', zodiac: 'てんびん座', blood: 'まるがた', like: '謎解き、頭を使うこと',                       weak: 'こわいものぜんぶ、戦うゲーム' , hex: '#8b5cf6' },
+    { name: 'るな',       color: 'みずいろ', birthday: '2月17日',  zodiac: 'みずがめ座', blood: 'O型',     like: '誰かと喋ること',                             weak: 'ジェットコースター' , hex: '#4ecbe8' },
+  ];
+
+  // 属性ごとの出題テンプレート。
+  //   forward = 「メンバー名 → 属性値」(選択肢は他メンバーの同じ属性の値)
+  //   reverse = 「属性値 → メンバー名」(選択肢は他メンバーの名前)
+  // 好きなこと/苦手なことは値が長く、選択肢ボタンに4つ並べると読みづらいので reverse のみにする。
+  const KARAPICHI_ATTRS = [
+    { key: 'color',    forward: n => `「${n}」のメンバーカラーは?`, reverse: v => `メンバーカラーが「${v}」なのは?` },
+    { key: 'birthday', forward: n => `「${n}」の誕生日は?`,         reverse: v => `${v}生まれのメンバーは?` },
+    { key: 'zodiac',   forward: n => `「${n}」の星座は?`,           reverse: v => `星座が「${v}」なのは?` },
+    { key: 'blood',    forward: n => `「${n}」の血液型は?`,         reverse: v => `血液型が「${v}」なのは?` },
+    { key: 'like',     forward: null,                                reverse: v => `「${v}」が好きなメンバーは?` },
+    { key: 'weak',     forward: null,                                reverse: v => `「${v}」が苦手なメンバーは?` },
   ];
 
   // グループ全体についての問題。d は不正解の選択肢
@@ -214,11 +231,46 @@
     { q: 'カラフルピーチのメンバーは何人?', a: '12人', d: ['8人', '10人', '15人'] },
     { q: 'カラフルピーチの略称(ニックネーム)は?', a: 'からぴち', d: ['かるぴち', 'からもも', 'ぴちから'] },
     { q: 'カラフルピーチが主に実況しているゲームは?', a: 'マインクラフト', d: ['フォートナイト', 'スプラトゥーン', 'どうぶつの森'] },
-    { q: 'カラフルピーチが結成されたのは何年?', a: '2020年', d: ['2014年', '2017年', '2023年'] },
+    { q: 'カラフルピーチが誕生したのは何年?', a: '2020年', d: ['2014年', '2017年', '2023年'] },
+    { q: 'カラフルピーチのリーダーは誰?', a: 'じゃぱぱ', d: ['たっつん', 'シヴァ', 'もふ'] },
+    { q: 'カラフルピーチが所属している事務所は?', a: 'UUUM', d: ['ホリプロ', '吉本興業', 'アミューズ'] },
+    { q: '同じ12月25日生まれのメンバーの組み合わせは?', a: 'じゃぱぱとシヴァ', d: ['のあとえと', 'うりとヒロ', 'もふとるな'] },
+    { q: 'メンバーの中でいちばん多い星座は?', a: 'てんびん座', d: ['やぎ座', 'しし座', 'おとめ座'] },
+    { q: '「歌うこと」が苦手なメンバー2人の組み合わせは?', a: 'じゃぱぱとシヴァ', d: ['たっつんとえと', 'のあとるな', 'どぬくとうり'] },
+    // 映画『カラフルピーチ/魔王と予言の少女』について。
+    // タイトル・公開のきっかけ・あらすじの骨子は公式サイトでも確認できる。
+    // 個々のキャラクター名はファン編集の百科事典が唯一の出典で、公式での裏取りができていない
+    { q: 'カラフルピーチの映画のタイトルは「魔王と○○の少女」。○○は?', a: '予言', d: ['伝説', '約束', '希望'] },
+    { q: '映画「魔王と予言の少女」が公開されたのは何周年の記念?', a: '2周年', d: ['1周年', '3周年', '5周年'] },
+    { q: '映画「魔王と予言の少女」で、メンバーが迷い込んでしまう場所は?', a: '異世界', d: ['海の底', '宇宙', '江戸時代'] },
+    { q: '映画「魔王と予言の少女」に登場する魔王の名前は?', a: 'ディアロス・バトラー', d: ['カイク', 'エレナ・イーリス', 'マザコンドリア'] },
+    { q: '映画「魔王と予言の少女」に登場する、スーリヤ王国の王女の名前は?', a: 'エレナ・イーリス', d: ['ディアロス・バトラー', 'カイク', 'マザコンドリア'] },
   ];
 
-  const KARAPICHI_BANK = KARAPICHI_MEMBERS.map(m => ({ kind: 'member', m }))
-    .concat(KARAPICHI_TRIVIA.map(t => ({ kind: 'trivia', t })));
+  // 出題できる設問をあらかじめ列挙する。逆引き(属性値→メンバー名)は、その値を持つ
+  // メンバーが1人だけのときしか答えが一意に定まらないため、重複する値はスキップする。
+  const KARAPICHI_BANK = (function () {
+    const list = [];
+    KARAPICHI_ATTRS.forEach(attr => {
+      const seen = {};
+      KARAPICHI_MEMBERS.forEach(m => { seen[m[attr.key]] = (seen[m[attr.key]] || 0) + 1; });
+      KARAPICHI_MEMBERS.forEach(m => {
+        if (attr.forward) {
+          list.push({ kind: 'attr', dir: 'forward', key: attr.key, member: m, text: attr.forward(m.name) });
+        }
+        if (attr.reverse && seen[m[attr.key]] === 1) {
+          list.push({ kind: 'attr', dir: 'reverse', key: attr.key, member: m, text: attr.reverse(m[attr.key]) });
+        }
+      });
+    });
+    // 色そのものを見せて誰のカラーかを当てる問題。文字で「みどり」と書くより
+    // 直感的で、グループ名どおり「色」が主役になる
+    KARAPICHI_MEMBERS.forEach(m => {
+      list.push({ kind: 'attr', dir: 'swatch', key: 'color', member: m, text: 'このメンバーカラーは誰?' });
+    });
+    KARAPICHI_TRIVIA.forEach(t => list.push({ kind: 'trivia', t }));
+    return list;
+  })();
 
   // 小学校で習う漢字1026字。各要素は [漢字, 学年, 画数, [読み方の候補...]]
   // 出典: KANJIDIC2 (Electronic Dictionary Research and Development Group, CC BY-SA)
@@ -348,20 +400,29 @@
     return { type: 'choice', text: item.q, choices, accepted: [item.a] };
   }
 
-  const KARAPICHI_REVERSE_RATIO = 0.4; // 「カラー→メンバー名」を問う割合
-
   function generateKarapichiQuestion(item) {
     if (item.kind === 'trivia') {
       const t = item.t;
       return { type: 'choice', text: t.q, choices: shuffle([t.a, ...t.d]), accepted: [t.a] };
     }
-    const [name, color] = item.m;
-    if (Math.random() < KARAPICHI_REVERSE_RATIO) {
-      const names = shuffle(KARAPICHI_MEMBERS.filter(x => x[0] !== name)).slice(0, 3).map(x => x[0]);
-      return { type: 'choice', text: `メンバーカラーが「${color}」なのは?`, choices: shuffle([name, ...names]), accepted: [name] };
+    if (item.dir === 'swatch') {
+      const names = shuffle(KARAPICHI_MEMBERS.filter(m => m.name !== item.member.name)).slice(0, 3).map(m => m.name);
+      // 「しろ」は明るい背景に、「くろ」は暗い背景に溶けてしまうため、
+      // どちらのテーマでもはっきり見える色で必ず輪郭線を描く
+      const svg = `<circle cx="50" cy="50" r="38" fill="${item.member.hex}" stroke="var(--muted)" stroke-width="3"/>`;
+      return {
+        type: 'choice', text: item.text, svg,
+        choices: shuffle([item.member.name, ...names]), accepted: [item.member.name]
+      };
     }
-    const colors = shuffle(KARAPICHI_MEMBERS.filter(x => x[1] !== color)).slice(0, 3).map(x => x[1]);
-    return { type: 'choice', text: `「${name}」のメンバーカラーは?`, choices: shuffle([color, ...colors]), accepted: [color] };
+    const answer = item.dir === 'forward' ? item.member[item.key] : item.member.name;
+    // forward は同じ属性の他の値、reverse は他メンバーの名前を誤答にする。
+    // 血液型や星座は値が重複するので、誤答候補は重複を除いてから選ぶ
+    const pool = item.dir === 'forward'
+      ? KARAPICHI_MEMBERS.map(m => m[item.key]).filter((v, i, a) => v !== answer && a.indexOf(v) === i)
+      : KARAPICHI_MEMBERS.map(m => m.name).filter(v => v !== answer);
+    const choices = shuffle([answer, ...shuffle(pool).slice(0, 3)]);
+    return { type: 'choice', text: item.text, choices, accepted: [answer] };
   }
 
   // カテゴリごとの1問生成関数。'master'(達人)コースで各設問のカテゴリを
@@ -463,7 +524,9 @@
     replayAnimation(questionBoxEl, 'q-enter');
     const q = questions[current];
     questionEl.classList.remove('medium-text', 'long-text');
-    if (q.type === 'symbol') {
+    // svg を持つ設問は図を主役にして、問題文はその下のキャプションに置く
+    // (地図記号は記述式、からぴちのカラーは選択式と、回答方法は別々に決まる)
+    if (q.svg) {
       questionEl.innerHTML = `<svg class="symbol-svg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">${q.svg}</svg><div class="symbol-caption">${q.text}</div>`;
     } else {
       questionEl.textContent = q.text;

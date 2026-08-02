@@ -158,9 +158,51 @@ const riddleBy = {}; RIDDLES.forEach(r => riddleBy[r.q] = r);
 const prefBy = {}; PREF.forEach(p => prefBy[p[0]] = p);
 const msByQ = {}; MS.forEach(m => msByQ[m.q] = m);
 const msByName = {}; MS.forEach(m => msByName[m.a] = m);
-const karaByName = {}; KARA.forEach(m => karaByName[m[0]] = m[1]);
-const karaByColor = {}; KARA.forEach(m => karaByColor[m[1]] = m[0]);
+const karaByName = {}; KARA.forEach(m => karaByName[m.name] = m);
 const karaTriviaBy = {}; KARA_TRIVIA.forEach(t => karaTriviaBy[t.q] = t.a);
+// 「属性値 → その値を持つメンバー」の逆引き。値が重複するものは出題されない想定
+const karaByValue = {};
+['color', 'birthday', 'zodiac', 'blood', 'like', 'weak'].forEach(key => {
+  karaByValue[key] = {};
+  KARA.forEach(m => {
+    const v = m[key];
+    karaByValue[key][v] = karaByValue[key][v] === undefined ? m.name : null; // 重複したら null
+  });
+});
+
+// からぴちの設問文から「正解」と「どの属性・向きか」を割り出す
+const KARA_FORWARD = [
+  [/^「(.+?)」のメンバーカラーは\?$/, 'color'],
+  [/^「(.+?)」の誕生日は\?$/, 'birthday'],
+  [/^「(.+?)」の星座は\?$/, 'zodiac'],
+  [/^「(.+?)」の血液型は\?$/, 'blood'],
+];
+const KARA_REVERSE = [
+  [/^メンバーカラーが「(.+?)」なのは\?$/, 'color'],
+  [/^(.+?)生まれのメンバーは\?$/, 'birthday'],
+  [/^星座が「(.+?)」なのは\?$/, 'zodiac'],
+  [/^血液型が「(.+?)」なのは\?$/, 'blood'],
+  [/^「(.+?)」が好きなメンバーは\?$/, 'like'],
+  [/^「(.+?)」が苦手なメンバーは\?$/, 'weak'],
+];
+function solveKarapichi(text, html) {
+  // カラーを色そのもので見せる問題は、SVGのfill(16進カラー)から答えを引く
+  if (html && html.includes('symbol-svg')) {
+    const m = html.match(/fill="(#[0-9a-fA-F]{6})"/);
+    const member = m && KARA.find(x => x.hex.toLowerCase() === m[1].toLowerCase());
+    return member ? { value: member.name, kind: 'color/swatch' } : null;
+  }
+  if (karaTriviaBy[text]) return { value: karaTriviaBy[text], kind: 'trivia' };
+  for (const [re, key] of KARA_FORWARD) {
+    const m = text.match(re);
+    if (m && karaByName[m[1]]) return { value: karaByName[m[1]][key], kind: key + '/forward' };
+  }
+  for (const [re, key] of KARA_REVERSE) {
+    const m = text.match(re);
+    if (m && karaByValue[key][m[1]]) return { value: karaByValue[key][m[1]], kind: key + '/reverse' };
+  }
+  return null;
+}
 
 function arithAnswer(t) {
   const m = t.match(/^(-?\d+)\s*([+\-×÷])\s*(-?\d+)\s*=$/);
@@ -176,9 +218,8 @@ function solve(app) {
   let m;
 
   if (!app.els.choiceList.classList.contains('hidden')) {
-    if ((m = text.match(/^「(.+?)」のメンバーカラーは\?$/))) return { kind: 'choice', value: karaByName[m[1]] };
-    if ((m = text.match(/^メンバーカラーが「(.+?)」なのは\?$/))) return { kind: 'choice', value: karaByColor[m[1]] };
-    if (karaTriviaBy[text]) return { kind: 'choice', value: karaTriviaBy[text] };
+    const kara = solveKarapichi(text, html);
+    if (kara) return { kind: 'choice', value: kara.value, karaKind: kara.kind };
     if ((m = text.match(/^「(.+?)」の型番は\?$/))) return { kind: 'choice', value: msByName[m[1]].code };
     if (msByQ[text]) return { kind: 'choice', value: msByQ[text].a };
     return null;
@@ -281,42 +322,61 @@ console.log('=== 3. 他カテゴリの採点 ===');
 
 console.log('=== 4. からぴち: 出題の内訳が事実と一致する ===');
 {
-  const app = buildApp();
-  start(app, 'kara', 20);
-  const kinds = { color: 0, member: 0, trivia: 0 };
-  let dataOk = true, choiceOk = true;
-  for (let i = 0; i < 20; i++) {
-    const text = app.els.question.textContent;
-    const btns = app.els.choiceList.children;
-    const labels = btns.map(b => b.dataset.choice);
-    if (btns.length !== 4 || new Set(labels).size !== 4) choiceOk = false;
-    let m;
-    if ((m = text.match(/^「(.+?)」のメンバーカラーは\?$/))) {
-      kinds.color++;
-      if (!karaByName[m[1]]) dataOk = false;
-      // 誤答の選択肢に正解と同じ色が混ざっていないこと
-      if (labels.filter(l => l === karaByName[m[1]]).length !== 1) dataOk = false;
-    } else if ((m = text.match(/^メンバーカラーが「(.+?)」なのは\?$/))) {
-      kinds.member++;
-      if (!karaByColor[m[1]]) dataOk = false;
-    } else if (karaTriviaBy[text]) {
-      kinds.trivia++;
-      if (!labels.includes(karaTriviaBy[text])) dataOk = false;
-    } else dataOk = false;
-    answerCurrent(app, true);
-    app.runTimers();
+  // 出題プール全体を1問ずつ検証する(取りこぼしを防ぐため20問コースを繰り返し回す)
+  const kinds = {};
+  let dataOk = true, choiceOk = true, answerInChoices = true, unsolved = null;
+  const seen = new Set();
+  for (let round = 0; round < 12; round++) {
+    const app = buildApp();
+    start(app, 'kara', 20);
+    for (let i = 0; i < 20; i++) {
+      const text = app.els.question.textContent;
+      const html = app.els.question.innerHTML;
+      const labels = app.els.choiceList.children.map(b => b.dataset.choice);
+      if (labels.length !== 4 || new Set(labels).size !== 4) choiceOk = false;
+      const sol = solveKarapichi(text, html);
+      if (!sol) { dataOk = false; unsolved = unsolved || (text || html).slice(0, 60); }
+      else {
+        seen.add(sol.kind === 'color/swatch' ? 'swatch:' + sol.value : text);
+        kinds[sol.kind] = (kinds[sol.kind] || 0) + 1;
+        // 正解が選択肢に1つだけ含まれること(誤答に正解と同じ値が紛れていない)
+        if (labels.filter(l => l === sol.value).length !== 1) answerInChoices = false;
+      }
+      answerCurrent(app, true);
+      app.runTimers();
+    }
   }
   check('選択肢は常に4つで重複なし', choiceOk);
-  check('出題内容がデータと整合', dataOk);
-  check('カラー問題が出る', kinds.color > 0, JSON.stringify(kinds));
-  check('メンバー当て問題が出る', kinds.member > 0, JSON.stringify(kinds));
+  check('全設問がデータから解ける', dataOk, unsolved);
+  check('正解がちょうど1つ選択肢に入る', answerInChoices);
+  check('カラー(名前→値)が出る', kinds['color/forward'] > 0);
+  check('カラー(値→名前)が出る', kinds['color/reverse'] > 0);
+  check('カラー(色を見せる問題)が出る', kinds['color/swatch'] > 0);
+  check('誕生日が出る', kinds['birthday/forward'] > 0);
+  check('好きなことが出る', kinds['like/reverse'] > 0);
+  check('苦手なことが出る', kinds['weak/reverse'] > 0);
+  check('トリビアが出る', kinds['trivia'] > 0);
+  check('全メンバーに hex カラーがある',
+    KARA.every(m => /^#[0-9a-f]{6}$/i.test(m.hex)) && new Set(KARA.map(m => m.hex)).size === 12);
 
-  // メンバー12人・カラーはすべて異なる(重複していると逆引き問題が破綻する)
+  // データの整合性
   check('メンバーは12人', KARA.length === 12, KARA.length);
-  check('カラーが全員異なる', new Set(KARA.map(m => m[1])).size === 12);
-  check('名前が全員異なる', new Set(KARA.map(m => m[0])).size === 12);
+  check('名前が全員異なる', new Set(KARA.map(m => m.name)).size === 12);
+  check('カラーが全員異なる', new Set(KARA.map(m => m.color)).size === 12);
+  check('全員に6項目そろっている',
+    KARA.every(m => ['name', 'color', 'birthday', 'zodiac', 'blood', 'like', 'weak'].every(k => m[k])));
   check('トリビアの選択肢は正解を含まない誤答3つ',
     KARA_TRIVIA.every(t => t.d.length === 3 && !t.d.includes(t.a)));
+
+  // 逆引きは答えが一意に定まるものだけが出題される
+  const dupBirthday = KARA.filter(m => KARA.filter(x => x.birthday === m.birthday).length > 1);
+  check('重複する誕生日の逆引きは出題されない',
+    dupBirthday.length > 0 && ![...seen].some(t => t === `${dupBirthday[0].birthday}生まれのメンバーは?`),
+    dupBirthday.map(m => m.name).join(','));
+
+  const bank = Object.values(kinds).length;
+  console.log('  (出題プール内訳) ' + JSON.stringify(kinds));
+  check('出題プールは100問以上', seen.size >= 100, seen.size + '問');
 }
 
 console.log('=== 5. 達人コース: 全カテゴリが混ざる ===');
@@ -330,7 +390,9 @@ console.log('=== 5. 達人コース: 全カテゴリが混ざる ===');
       const text = app.els.question.textContent;
       const html = app.els.question.innerHTML;
       if (!app.els.choiceList.classList.contains('hidden')) {
-        kinds.add(/メンバーカラー/.test(text) || karaTriviaBy[text] ? 'kara' : 'ms');
+        // 選択式は「からぴち」と「モビルスーツ」の2カテゴリが共用しているので、
+        // からぴちのデータから解けるかどうかで見分ける
+        kinds.add(solveKarapichi(text, html) ? 'kara' : 'ms');
       } else if (html.includes('symbol-svg')) kinds.add('map');
       else if (arithAnswer(text) !== null) kinds.add('arith');
       else if (/読み方|何画/.test(text)) kinds.add('kanji');
