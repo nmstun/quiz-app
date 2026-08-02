@@ -129,10 +129,12 @@ h1 {
   border-radius: var(--radius);
   padding: 4px;
 }
-/* カテゴリは項目数が3の倍数でないため、等分割せず自然幅で折り返す */
+/* カテゴリは項目数が3の倍数でないため、等分割せず自然幅で折り返す。
+   最終行に項目が1つだけ余ることがあるので、中央寄せにして収まりを良くする */
 .segmented--wrap {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
 }
 .segmented--wrap .segmented-btn { flex: 0 1 auto; }
 .segmented-btn {
