@@ -67,7 +67,7 @@ function seg(dataKey, dataVal, active) {
   return b;
 }
 
-const CATEGORY_TYPES = ['arith', 'kanji', 'pref', 'map', 'riddle', 'ms', 'kara', 'master'];
+const CATEGORY_TYPES = ['arith', 'kanji', 'pref', 'map', 'riddle', 'ms', 'kara', 'smash', 'master'];
 
 // index.html と同じ構成のスタブを組み立てて script.js を実行する
 function buildApp(opts = {}) {
@@ -151,6 +151,8 @@ const REGIONS = grab(/const REGIONS = (\{[\s\S]*?\});/, true);
 const SYMBOLS = grab(/const MAP_SYMBOLS = (\[[\s\S]*?\]);/);
 const MS = grab(/const MS_DATA = (\[[\s\S]*?\]);/);
 const KARA = grab(/const KARAPICHI_MEMBERS = (\[[\s\S]*?\]);/);
+const SMASH = grab(/const SMASH_FIGHTERS = (\[[\s\S]*?\n  \]);/);
+const SMASH_TRIVIA = grab(/const SMASH_TRIVIA = (\[[\s\S]*?\n  \]);/);
 const KARA_TRIVIA = grab(/const KARAPICHI_TRIVIA = (\[[\s\S]*?\]);/);
 
 const kanjiBy = {}; KANJI.forEach(k => kanjiBy[k[0]] = k);
@@ -185,6 +187,22 @@ const KARA_REVERSE = [
   [/^「(.+?)」が好きなメンバーは\?$/, 'like'],
   [/^「(.+?)」が苦手なメンバーは\?$/, 'weak'],
 ];
+const smashByName = {}; SMASH.forEach(([n, sr]) => smashByName[n] = sr);
+const smashBySeries = {};
+SMASH.forEach(([n, sr]) => { smashBySeries[sr] = smashBySeries[sr] === undefined ? n : null; });
+const smashTriviaBy = {}; SMASH_TRIVIA.forEach(t => smashTriviaBy[t.q] = t.a);
+function solveSmash(text) {
+  if (smashTriviaBy[text]) return { value: smashTriviaBy[text], kind: 'trivia' };
+  let m;
+  if ((m = text.match(/^「(.+?)」が出ているゲームシリーズは\?$/)) && smashByName[m[1]]) {
+    return { value: smashByName[m[1]], kind: 'fighter/forward' };
+  }
+  if ((m = text.match(/^「(.+?)」から参戦しているファイターは\?$/)) && smashBySeries[m[1]]) {
+    return { value: smashBySeries[m[1]], kind: 'fighter/reverse' };
+  }
+  return null;
+}
+
 function solveKarapichi(text, html) {
   // カラーを色そのもので見せる問題は、SVGのfill(16進カラー)から答えを引く
   if (html && html.includes('symbol-svg')) {
@@ -220,6 +238,8 @@ function solve(app) {
   if (!app.els.choiceList.classList.contains('hidden')) {
     const kara = solveKarapichi(text, html);
     if (kara) return { kind: 'choice', value: kara.value, karaKind: kara.kind };
+    const smash = solveSmash(text);
+    if (smash) return { kind: 'choice', value: smash.value, smashKind: smash.kind };
     if ((m = text.match(/^「(.+?)」の型番は\?$/))) return { kind: 'choice', value: msByName[m[1]].code };
     if (msByQ[text]) return { kind: 'choice', value: msByQ[text].a };
     return null;
@@ -306,7 +326,7 @@ console.log('=== 2. 漢字: 学年帯別の出題範囲と採点 ===');
 
 console.log('=== 3. 他カテゴリの採点 ===');
 {
-  for (const type of ['pref', 'map', 'riddle', 'ms', 'kara']) {
+  for (const type of ['pref', 'map', 'riddle', 'ms', 'kara', 'smash']) {
     const app = buildApp();
     start(app, type, 20);
     let correct = 0, parsed = true;
@@ -379,6 +399,51 @@ console.log('=== 4. からぴち: 出題の内訳が事実と一致する ===');
   check('出題プールは100問以上', seen.size >= 100, seen.size + '問');
 }
 
+console.log('=== 4b. スマブラ: 出題の内訳が事実と一致する ===');
+{
+  const kinds = {};
+  let dataOk = true, choiceOk = true, answerInChoices = true, unsolved = null;
+  const seen = new Set();
+  for (let round = 0; round < 12; round++) {
+    const app = buildApp();
+    start(app, 'smash', 20);
+    for (let i = 0; i < 20; i++) {
+      const text = app.els.question.textContent;
+      const labels = app.els.choiceList.children.map(b => b.dataset.choice);
+      if (labels.length !== 4 || new Set(labels).size !== 4) choiceOk = false;
+      const sol = solveSmash(text);
+      if (!sol) { dataOk = false; unsolved = unsolved || text; }
+      else {
+        seen.add(text);
+        kinds[sol.kind] = (kinds[sol.kind] || 0) + 1;
+        if (labels.filter(l => l === sol.value).length !== 1) answerInChoices = false;
+      }
+      answerCurrent(app, true);
+      app.runTimers();
+    }
+  }
+  check('選択肢は常に4つで重複なし', choiceOk);
+  check('全設問がデータから解ける', dataOk, unsolved);
+  check('正解がちょうど1つ選択肢に入る', answerInChoices);
+  check('ファイター→シリーズが出る', kinds['fighter/forward'] > 0);
+  check('シリーズ→ファイターが出る', kinds['fighter/reverse'] > 0);
+  check('トリビアが出る', kinds['trivia'] > 0);
+  check('ファイター名の重複なし', new Set(SMASH.map(f => f[0])).size === SMASH.length);
+  check('トリビアの選択肢は正解を含まない誤答3つ',
+    SMASH_TRIVIA.every(t => t.d.length === 3 && !t.d.includes(t.a)));
+
+  // 複数体が参戦しているシリーズの逆引きは、答えが定まらないので出題しない
+  const perSeries = {};
+  SMASH.forEach(([, s]) => { perSeries[s] = (perSeries[s] || 0) + 1; });
+  const multi = Object.keys(perSeries).filter(s => perSeries[s] > 1);
+  check('複数体いるシリーズの逆引きは出題されない',
+    multi.length > 0 && !multi.some(s => seen.has(`「${s}」から参戦しているファイターは?`)),
+    multi.slice(0, 3).join(','));
+
+  console.log('  (出題プール内訳) ' + JSON.stringify(kinds));
+  check('出題プールは100問以上', seen.size >= 100, seen.size + '問');
+}
+
 console.log('=== 5. 達人コース: 全カテゴリが混ざる ===');
 {
   const kinds = new Set();
@@ -392,7 +457,7 @@ console.log('=== 5. 達人コース: 全カテゴリが混ざる ===');
       if (!app.els.choiceList.classList.contains('hidden')) {
         // 選択式は「からぴち」と「モビルスーツ」の2カテゴリが共用しているので、
         // からぴちのデータから解けるかどうかで見分ける
-        kinds.add(solveKarapichi(text, html) ? 'kara' : 'ms');
+        kinds.add(solveKarapichi(text, html) ? 'kara' : solveSmash(text) ? 'smash' : 'ms');
       } else if (html.includes('symbol-svg')) kinds.add('map');
       else if (arithAnswer(text) !== null) kinds.add('arith');
       else if (/読み方|何画/.test(text)) kinds.add('kanji');
@@ -404,7 +469,7 @@ console.log('=== 5. 達人コース: 全カテゴリが混ざる ===');
       app.runTimers();
     }
   }
-  check('7カテゴリすべて出現', kinds.size === 7, [...kinds].sort().join(','));
+  check('8カテゴリすべて出現', kinds.size === 8, [...kinds].sort().join(','));
   check('全問正解', correct === total, correct + '/' + total);
 }
 
@@ -440,7 +505,7 @@ console.log('=== 7. 中断(やめる)でタイマーが止まる ===');
 
 console.log('=== 8. 四択の正誤マーキング ===');
 {
-  for (const type of ['ms', 'kara']) {
+  for (const type of ['ms', 'kara', 'smash']) {
     const app = buildApp();
     start(app, type, 5);
     const want = solve(app).value;
