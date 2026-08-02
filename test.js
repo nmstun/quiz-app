@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
+const dataCode = fs.readFileSync(path.join(__dirname, 'data.js'), 'utf8');
 const code = fs.readFileSync(path.join(__dirname, 'script.js'), 'utf8');
 
 let pass = 0, fail = 0;
@@ -127,6 +128,7 @@ function buildApp(opts = {}) {
     Date: { now: () => now }
   };
   vm.createContext(sandbox);
+  vm.runInContext(dataCode, sandbox);
   vm.runInContext(code, sandbox);
 
   return {
@@ -142,18 +144,18 @@ function buildApp(opts = {}) {
   };
 }
 
-// ---------- script.js から正解データを取り出す ----------
-const grab = (re, wrap) => { const m = code.match(re); return eval(wrap ? '(' + m[1] + ')' : m[1]); };
-const KANJI = grab(/const KANJI_DATA = (\[.*?\]\]);/);
-const RIDDLES = grab(/const RIDDLES = (\[[\s\S]*?\]);/);
-const PREF = grab(/const PREF_DATA = (\[[\s\S]*?\]);/);
-const REGIONS = grab(/const REGIONS = (\{[\s\S]*?\});/, true);
-const SYMBOLS = grab(/const MAP_SYMBOLS = (\[[\s\S]*?\]);/);
-const MS = grab(/const MS_DATA = (\[[\s\S]*?\]);/);
-const KARA = grab(/const KARAPICHI_MEMBERS = (\[[\s\S]*?\]);/);
-const SMASH = grab(/const SMASH_FIGHTERS = (\[[\s\S]*?\n  \]);/);
-const SMASH_TRIVIA = grab(/const SMASH_TRIVIA = (\[[\s\S]*?\n  \]);/);
-const KARA_TRIVIA = grab(/const KARAPICHI_TRIVIA = (\[[\s\S]*?\]);/);
+// ---------- 正解データ ----------
+// data.js をそのまま評価して使う(正規表現でソースを切り出すと、データの書き方を
+// 変えるたびにテスト側も壊れるため)
+const DATA = (function () {
+  const box = {};
+  vm.createContext(box);
+  vm.runInContext(dataCode, box);
+  return box.QUIZ_DATA;
+})();
+const { KANJI_DATA: KANJI, RIDDLES, PREF_DATA: PREF, REGIONS, MAP_SYMBOLS: SYMBOLS,
+        MS_DATA: MS, KARAPICHI_MEMBERS: KARA, KARAPICHI_TRIVIA: KARA_TRIVIA,
+        SMASH_FIGHTERS: SMASH, SMASH_TRIVIA } = DATA;
 
 const kanjiBy = {}; KANJI.forEach(k => kanjiBy[k[0]] = k);
 const riddleBy = {}; RIDDLES.forEach(r => riddleBy[r.q] = r);
@@ -346,8 +348,9 @@ console.log('=== 4. からぴち: 出題の内訳が事実と一致する ===');
   const kinds = {};
   let dataOk = true, choiceOk = true, answerInChoices = true, unsolved = null;
   const seen = new Set();
-  for (let round = 0; round < 12; round++) {
-    const app = buildApp();
+  const app = buildApp();
+  for (let round = 0; round < 40; round++) {
+    app.els.quitBtn.click();
     start(app, 'kara', 20);
     for (let i = 0; i < 20; i++) {
       const text = app.els.question.textContent;
@@ -404,8 +407,9 @@ console.log('=== 4b. スマブラ: 出題の内訳が事実と一致する ===')
   const kinds = {};
   let dataOk = true, choiceOk = true, answerInChoices = true, unsolved = null;
   const seen = new Set();
-  for (let round = 0; round < 12; round++) {
-    const app = buildApp();
+  const app = buildApp();
+  for (let round = 0; round < 40; round++) {
+    app.els.quitBtn.click();
     start(app, 'smash', 20);
     for (let i = 0; i < 20; i++) {
       const text = app.els.question.textContent;
@@ -524,6 +528,43 @@ console.log('=== 8. 四択の正誤マーキング ===');
     check(`${type}: 正答時は is-wrong が付かない`,
       app2.els.choiceList.children.filter(b => b.classList.contains('is-wrong')).length === 0);
   }
+}
+
+console.log('=== 8b. 四択は完全一致で採点する ===');
+{
+  // 「ガンダム」が正解のとき「ユニコーンガンダム」を選ぶと、部分一致判定では
+  // 誤って正解になってしまう。四択でそれが起きないことを確かめる
+  const app = buildApp();
+  let checked = 0, wrongAcceptedAsCorrect = 0;
+  for (let round = 0; round < 40 && checked < 12; round++) {
+    app.els.quitBtn.click();
+    start(app, 'ms', 20);
+    for (let i = 0; i < 20; i++) {
+      const answer = solve(app).value;
+      const others = app.els.choiceList.children.filter(b => b.dataset.choice !== answer);
+      // 正解を部分文字列として含む誤答(=部分一致だとすり抜ける組み合わせ)だけを試す
+      const trap = others.find(b => b.dataset.choice.includes(answer));
+      if (trap) {
+        checked++;
+        trap.click();
+        if (app.els.statusLine.textContent.startsWith('正解')) wrongAcceptedAsCorrect++;
+      } else {
+        answerCurrent(app, true);
+      }
+      app.runTimers();
+    }
+  }
+  check('正解を含む誤答を試せた', checked > 0, checked + '件');
+  check('誤答が正解と判定されない', wrongAcceptedAsCorrect === 0, wrongAcceptedAsCorrect + '件');
+
+  // 一方、記述式は言い回しのぶれを許す(部分一致)まま
+  const app2 = buildApp();
+  start(app2, 'riddle', 20);
+  const sol = solve(app2);
+  app2.els.textInput.value = 'こたえは' + sol.value + 'だとおもいます';
+  app2.els.submitBtn.click();
+  check('記述式は部分一致のまま正解になる', app2.els.statusLine.textContent.startsWith('正解'),
+    app2.els.statusLine.textContent);
 }
 
 console.log('=== 9. 進捗表示と問題文サイズの段階 ===');
