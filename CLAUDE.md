@@ -33,13 +33,32 @@ quiz-app/
 ├── data.js      問題データ(script.js より先に読み込む)
 ├── script.js    ロジック(問題生成・音声認識・採点)
 ├── test.js      回帰テスト(`node test.js`。依存なし)
-├── favicon.svg           アプリアイコン(暖色地に白の「?」)
-├── apple-touch-icon.png  favicon.svgから書き出した180px
-├── icon-192.png          同上(192px)
-├── icon-512.png          同上(512px)
+├── favicon.svg           アプリアイコン(暖色地に白の「?」)。実体はこの1ファイル
+├── favicon.ico           Safari用。以下すべてfavicon.svgから書き出したもの
+├── favicon-32.png        32px
+├── apple-touch-icon.png  180px
+├── icon-192.png          192px
+├── icon-512.png          512px
 ├── manifest.webmanifest  ホーム画面追加時の名称とアイコン
+├── scripts/              favicon.ico生成スクリプト
 └── CLAUDE.md    このファイル
 ```
+
+**Safariは `rel="icon"` のSVGを使わない**ため、SVGだけ置くとSafariのタブが空になる。
+icoとPNGを併せて置き、`index.html` で ico → PNG → SVG の順に宣言している。
+絵柄を変えたら以下で全部作り直す。
+
+```sh
+rsvg-convert -w 180 -h 180 favicon.svg -o apple-touch-icon.png
+rsvg-convert -w  32 -h  32 favicon.svg -o favicon-32.png
+rsvg-convert -w 192 -h 192 favicon.svg -o icon-192.png
+rsvg-convert -w 512 -h 512 favicon.svg -o icon-512.png
+node scripts/make-favicon-ico.mjs favicon.svg favicon.ico
+```
+
+`scripts/make-favicon-ico.mjs` はicoの中身にBMPではなくPNGをそのまま詰めており、
+そのPNGはRGBAにしてある(`rsvg-convert` は全ピクセルが不透明だとRGBで書き出すが、
+RGBのPNGを入れたicoを受け付けないデコーダーがあるため)。
 
 `index.html` のファビコンの `link` タグには `?v=2` を付けている。ファビコンはブラウザが
 通常のHTTPキャッシュ制御とは別の仕組みで保持しており、`Cache-Control: must-revalidate`

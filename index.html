@@ -6,10 +6,13 @@
 <meta name="theme-color" content="#f5f7fb" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#12151d" media="(prefers-color-scheme: dark)">
 <title>咲登クイズ</title>
-<!-- ?v= はブラウザのファビコンキャッシュ対策。ファビコンは通常のHTTPキャッシュ制御を
-     無視して保持されるため、絵柄を変えたらこの番号も上げてURLを変える -->
-<link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
-<link rel="apple-touch-icon" href="apple-touch-icon.png?v=2">
+<!-- SafariはSVGのrel=iconを使わないため、ico/PNGも併せて置く。SVGだけだとタブが
+     空になる。?v= はブラウザのファビコンキャッシュ対策で、ファビコンは通常のHTTP
+     キャッシュ制御を無視して保持されるため、絵柄を変えたらこの番号も上げてURLを変える -->
+<link rel="icon" href="favicon.ico?v=3" sizes="16x16 32x32 48x48">
+<link rel="icon" type="image/png" href="favicon-32.png?v=3" sizes="32x32">
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=3">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=3">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="style.css">
 </head>
