@@ -33,6 +33,11 @@ quiz-app/
 ├── data.js      問題データ(script.js より先に読み込む)
 ├── script.js    ロジック(問題生成・音声認識・採点)
 ├── test.js      回帰テスト(`node test.js`。依存なし)
+├── favicon.svg           アプリアイコン(暖色地に白の「?」)
+├── apple-touch-icon.png  favicon.svgから書き出した180px
+├── icon-192.png          同上(192px)
+├── icon-512.png          同上(512px)
+├── manifest.webmanifest  ホーム画面追加時の名称とアイコン
 └── CLAUDE.md    このファイル
 ```
 
