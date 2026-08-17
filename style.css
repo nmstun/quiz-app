@@ -468,6 +468,26 @@ h1 {
   border-color: var(--wrong);
   color: var(--wrong);
 }
+/* 正解が無いカテゴリ(究極の選択)。選んだものを、当たり外れの色ではなく主色で示す */
+.choice-btn.is-picked:disabled {
+  opacity: 1;
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary-strong);
+}
+/* 2択は横に細長く並べるより、上下に大きく並べたほうが読みやすく押しやすい */
+.choice-list--pair {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.choice-list--pair .choice-btn {
+  padding: 18px 14px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+.status-line.picked { color: var(--primary-strong); font-weight: 700; }
+.result-list .picked { color: var(--primary-strong); font-weight: 700; text-align: right; }
+.progress .dot.answered { background: var(--primary); opacity: .45; }
 
 .note {
   font-size: 12px;

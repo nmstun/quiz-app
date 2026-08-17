@@ -1,5 +1,5 @@
 (function () {
-  const APP_VERSION = '0.9.2';
+  const APP_VERSION = '0.10.0';
   let TOTAL = 5;
   const NEXT_QUESTION_DELAY_MS = 2000;
   let questions = [];
@@ -62,7 +62,7 @@
   const {
     RIDDLES, MS_DATA, KANJI_DATA, PREF_DATA, REGIONS, MAP_SYMBOLS,
     KARAPICHI_MEMBERS, KARAPICHI_ATTRS, KARAPICHI_TRIVIA,
-    SMASH_FIGHTERS, SMASH_TRIVIA
+    SMASH_FIGHTERS, SMASH_TRIVIA, DILEMMA_THEMES, DILEMMA_PAIRS
   } = QUIZ_DATA;
 
   // 値ごとの出現数を数える。「値→名前」の逆引きは、その値を持つ項目が1つだけの
@@ -247,6 +247,27 @@
       : choiceQuestion(item.text, item.member.name, memberNames());
   }
 
+  const DILEMMA_PAIR_RATIO = 0.35; // 作り込んだ固定ペアを出す割合
+
+  // 究極の選択(パーティークイズ)。正解が無いので採点しない設問として作る。
+  // 固定の問題リストから選ぶのではなく、1問ずつその場で組み立てる:
+  //   - テーマ内の2項目をランダムに組み合わせる(数は稼げるが対比は運まかせ)
+  //   - 対比を練った固定ペアをそのまま使う(数は少ないが確実に面白い)
+  // の2通りを混ぜることで、手数と質の両方を確保している
+  function generateDilemmaQuestion() {
+    let ask, a, b;
+    if (Math.random() < DILEMMA_PAIR_RATIO) {
+      [a, b] = DILEMMA_PAIRS[randInt(0, DILEMMA_PAIRS.length - 1)];
+      ask = 'どっちをえらぶ?';
+    } else {
+      const theme = DILEMMA_THEMES[randInt(0, DILEMMA_THEMES.length - 1)];
+      [a, b] = shuffle(theme.items).slice(0, 2);
+      ask = theme.ask(a, b);
+    }
+    // 左右どちらに出るかも毎回入れかえる
+    return { type: 'choice', scored: false, text: ask, choices: shuffle([a, b]), accepted: [] };
+  }
+
   function generateSmashQuestion(item) {
     if (item.kind === 'trivia') return triviaQuestion(item.t);
     const [name, series] = item.f;
@@ -263,10 +284,12 @@
 
   // カテゴリの定義はここ1か所に集約する。
   // bank は出題プールを返す関数(学年で中身が変わるものがあるので関数にしている)。
-  // 算数だけは決まったプールを持たず毎回その場で作るので bank を持たない。
+  // 算数と究極の選択は決まったプールを持たず毎回その場で作るので bank を持たない。
+  // scored: false は正解が無く採点しないカテゴリ(達人コースにも混ぜない)。
   // カテゴリを増やすときに触るのは、この配列と index.html のボタンだけ。
   const CATEGORIES = [
     { id: 'arith',  label: '算数',         generate: generateArithQuestion },
+    { id: 'dilemma', label: '究極の選択',  generate: generateDilemmaQuestion, scored: false },
     { id: 'kanji',  label: '漢字',         bank: getKanjiBank,          generate: generateKanjiQuestion },
     { id: 'pref',   label: '都道府県',     bank: () => PREF_DATA,       generate: generatePrefQuestion },
     { id: 'map',    label: '地図記号',     bank: () => MAP_SYMBOLS,     generate: generateSymbolQuestion },
@@ -280,23 +303,37 @@
   const CATEGORY_LABELS = { master: '達人' };
   CATEGORIES.forEach(c => { CATEGORY_LABELS[c.id] = c.label; });
 
+  // その場で作るカテゴリ(算数・究極の選択)は、バンクから引く場合と違って
+  // 同じ設問が二度出てしまう。重複したら作り直し、それでも駄目なら諦めて採用する
+  const questionKey = q => q.text + '|' + (q.choices || []).slice().sort().join(',');
+  function generateUnique(count, make) {
+    const seen = new Set();
+    return Array.from({ length: count }, () => {
+      let q = make();
+      for (let retry = 0; retry < 20 && seen.has(questionKey(q)); retry++) q = make();
+      seen.add(questionKey(q));
+      return q;
+    });
+  }
+
   function generateSet() {
     const category = CATEGORY_BY_ID[currentType];
     if (category) {
       questions = category.bank
         ? sampleFromBank(category.bank(), TOTAL).map(item => category.generate(item))
-        : Array.from({ length: TOTAL }, () => category.generate());
+        : generateUnique(TOTAL, () => category.generate());
       return;
     }
-    // 達人コース: すべてのカテゴリを設問ごとにランダムに混ぜて出題。
+    // 達人コース: 採点するカテゴリを設問ごとにランダムに混ぜて出題。
     // 各カテゴリのプールを先にTOTAL件ずつ確保しておき、抽選されるたびに先頭から
     // 消費することで、1回のセット内で同じ設問が重複しないようにする
+    const mixed = CATEGORIES.filter(c => c.scored !== false);
     const pools = {};
-    CATEGORIES.forEach(c => {
+    mixed.forEach(c => {
       if (c.bank) pools[c.id] = { items: sampleFromBank(c.bank(), TOTAL), used: 0 };
     });
     questions = Array.from({ length: TOTAL }, () => {
-      const c = CATEGORIES[randInt(0, CATEGORIES.length - 1)];
+      const c = mixed[randInt(0, mixed.length - 1)];
       const pool = pools[c.id];
       return pool ? c.generate(pool.items[pool.used++]) : c.generate();
     });
@@ -309,7 +346,9 @@
       const dot = document.createElement('div');
       dot.className = 'dot';
       if (i < results.length) {
-        dot.classList.add(results[i].correct ? 'done' : 'wrong');
+        // correct が null の設問(究極の選択など)は正誤が無いので中立の色にする
+        const r = results[i].correct;
+        dot.classList.add(r === null ? 'answered' : r ? 'done' : 'wrong');
       } else if (i === current) {
         dot.classList.add('current');
       }
@@ -358,6 +397,8 @@
     if (q.type === 'choice') {
       controlsEl.classList.add('hidden');
       choiceListEl.classList.remove('hidden');
+      // 2択は横並びだと1つあたりが細くなるので、縦に大きく並べる
+      choiceListEl.classList.toggle('choice-list--pair', q.choices.length === 2);
       choiceListEl.innerHTML = '';
       q.choices.forEach(choice => {
         const btn = document.createElement('button');
@@ -456,6 +497,11 @@
     playTone(220, 0, 0.25, 'square', 0.12);
   }
 
+  // 正解が無い設問用の、当たり外れを感じさせない中立な音
+  function playPickSound() {
+    playTone(660, 0, 0.12, 'sine', 0.18);
+  }
+
   // ---- 回答テキストから数値を抽出 ----
   const kanjiDigits = { '零':0,'〇':0,'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10,'百':100 };
 
@@ -525,6 +571,16 @@
     return !!norm && accepted.some(ans => normalizeAnswerText(ans) === norm);
   }
 
+  // 正誤表示を見せてから次の設問(または結果画面)へ進む
+  function scheduleNext() {
+    nextTimer = setTimeout(() => {
+      nextTimer = null;
+      current++;
+      if (current >= TOTAL) showResult();
+      else renderQuestion();
+    }, NEXT_QUESTION_DELAY_MS);
+  }
+
   // ---- 回答処理 ----
   function submitAnswer(rawText, source) {
     if (awaitingNext) return; // 次の設問への遷移待ち中は連打を無視
@@ -535,6 +591,26 @@
       : '';
 
     const question = questions[current];
+
+    // 究極の選択のような正解が無い設問は、採点せず「選んだもの」を記録して次へ進む
+    if (question.scored === false) {
+      const picked = String(rawText).trim();
+      if (!picked) return;
+      awaitingNext = true;
+      setInputsDisabled(true);
+      results.push({ q: question.text, userAnswer: picked, correct: null });
+      statusLineEl.textContent = `「${picked}」をえらんだ!`;
+      statusLineEl.className = 'status-line picked';
+      Array.from(choiceListEl.children).forEach(btn => {
+        if (btn.dataset.choice === picked) btn.classList.add('is-picked');
+      });
+      replayAnimation(questionBoxEl, 'feedback-correct');
+      playPickSound();
+      renderProgress();
+      scheduleNext();
+      return;
+    }
+
     let isCorrect, userAnswerDisplay, correctAnswerDisplay;
 
     if (question.type === 'arith' || question.type === 'kanji-stroke') {
@@ -586,16 +662,7 @@
     isCorrect ? playCorrectSound() : playWrongSound();
 
     renderProgress();
-
-    nextTimer = setTimeout(() => {
-      nextTimer = null;
-      current++;
-      if (current >= TOTAL) {
-        showResult();
-      } else {
-        renderQuestion();
-      }
-    }, NEXT_QUESTION_DELAY_MS);
+    scheduleNext();
   }
 
   // ---- 音声認識セットアップ ----
@@ -715,10 +782,35 @@
     clearScoresMsgEl.textContent = '記録をクリアしました。';
   });
 
+  // 選んだものを並べるだけの結果表示。正解が無いカテゴリはスコアもベスト記録も出さない
+  function showUnscoredResult() {
+    const timeMs = Date.now() - quizStartTime;
+    resultLabelEl.textContent = `${CATEGORY_LABELS[currentType]}・${TOTAL}問`;
+    scoreText.textContent = '🎉';
+    scoreText.classList.remove('is-perfect');
+    scoreMsg.textContent = 'えらんだのはこの通り。みんなはどうだった?';
+    timeTextEl.textContent = `所要時間: ${formatDuration(timeMs)}`;
+    bestScoreEl.textContent = '';
+    bestScoreEl.classList.remove('is-new');
+    bestScoreEl.classList.add('hidden');
+
+    resultList.innerHTML = '';
+    results.forEach(r => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span>${r.q}</span><span class="picked">${r.userAnswer}</span>`;
+      resultList.appendChild(li);
+    });
+  }
+
   // ---- 結果表示 ----
   function showResult() {
     quizView.classList.add('hidden');
     resultView.classList.remove('hidden');
+
+    if (CATEGORY_BY_ID[currentType] && CATEGORY_BY_ID[currentType].scored === false) {
+      showUnscoredResult();
+      return;
+    }
 
     const correctCount = results.filter(r => r.correct).length;
     const timeMs = Date.now() - quizStartTime;
@@ -756,6 +848,7 @@
     bestScoreEl.textContent = (isNewBest ? '🏆 新記録！ ベスト ' : 'ベスト ')
       + `${best.correct}/${best.total}・${formatDuration(best.timeMs)}`;
     bestScoreEl.classList.toggle('is-new', isNewBest);
+    bestScoreEl.classList.remove('hidden');
 
     resultList.innerHTML = '';
     results.forEach(r => {

@@ -68,7 +68,7 @@ function seg(dataKey, dataVal, active) {
   return b;
 }
 
-const CATEGORY_TYPES = ['arith', 'kanji', 'pref', 'map', 'riddle', 'ms', 'kara', 'smash', 'master'];
+const CATEGORY_TYPES = ['arith', 'kanji', 'pref', 'map', 'riddle', 'ms', 'kara', 'smash', 'dilemma', 'master'];
 
 // index.html と同じ構成のスタブを組み立てて script.js を実行する
 function buildApp(opts = {}) {
@@ -155,7 +155,8 @@ const DATA = (function () {
 })();
 const { KANJI_DATA: KANJI, RIDDLES, PREF_DATA: PREF, REGIONS, MAP_SYMBOLS: SYMBOLS,
         MS_DATA: MS, KARAPICHI_MEMBERS: KARA, KARAPICHI_TRIVIA: KARA_TRIVIA,
-        SMASH_FIGHTERS: SMASH, SMASH_TRIVIA } = DATA;
+        SMASH_FIGHTERS: SMASH, SMASH_TRIVIA,
+        DILEMMA_THEMES, DILEMMA_PAIRS } = DATA;
 
 const kanjiBy = {}; KANJI.forEach(k => kanjiBy[k[0]] = k);
 const riddleBy = {}; RIDDLES.forEach(r => riddleBy[r.q] = r);
@@ -448,6 +449,73 @@ console.log('=== 4b. スマブラ: 出題の内訳が事実と一致する ===')
   check('出題プールは100問以上', seen.size >= 100, seen.size + '問');
 }
 
+console.log('=== 4c. 究極の選択: 採点しないパーティーモード ===');
+{
+  const app = buildApp();
+  start(app, 'dilemma', 20);
+
+  // お題として成立しているか(2択・別物・データに由来する)を全問見る
+  const themeItems = new Set(DILEMMA_THEMES.flatMap(t => t.items));
+  const pairItems = new Set(DILEMMA_PAIRS.flat());
+  let twoChoices = true, distinct = true, fromData = true, texts = new Set(), picks = [];
+  for (let i = 0; i < 20; i++) {
+    const btns = app.els.choiceList.children;
+    const labels = btns.map(b => b.dataset.choice);
+    if (labels.length !== 2) twoChoices = false;
+    if (labels[0] === labels[1]) distinct = false;
+    if (!labels.every(l => themeItems.has(l) || pairItems.has(l))) fromData = false;
+    texts.add(app.els.question.textContent);
+
+    const pick = labels[i % 2];
+    picks.push(pick);
+    btns.find(b => b.dataset.choice === pick).click();
+
+    // 採点されず、選んだものが示されること
+    if (i === 0) {
+      check('正解/不正解を出さない', !/正解/.test(app.els.statusLine.textContent), app.els.statusLine.textContent);
+      check('選んだものを示す', app.els.statusLine.textContent.includes(pick), app.els.statusLine.textContent);
+      check('選んだボタンに is-picked', btns.find(b => b.dataset.choice === pick).classList.contains('is-picked'));
+      check('正誤の色は付かない',
+        btns.every(b => !b.classList.contains('is-correct') && !b.classList.contains('is-wrong')));
+      check('2択は縦並びのクラスが付く', app.els.choiceList.classList.contains('choice-list--pair'));
+    }
+    app.runTimers();
+  }
+  check('常に2択', twoChoices);
+  check('同じ選択肢が並ばない', distinct);
+  check('選択肢はすべてデータ由来', fromData);
+  check('20問で出題が偏らない', texts.size >= 5, texts.size + '種類');
+
+  // 進捗ドットが正誤の色にならないこと
+  const app2 = buildApp();
+  start(app2, 'dilemma', 5);
+  app2.els.choiceList.children[0].click();
+  const dots = app2.els.progress.children;
+  check('進捗ドットは中立色(answered)', dots[0].classList.contains('answered'));
+  check('進捗ドットに正誤色が付かない',
+    !dots[0].classList.contains('done') && !dots[0].classList.contains('wrong'));
+
+  // 結果画面: スコアもベスト記録も出さず、選んだものを並べる
+  const store = {};
+  const app3 = buildApp({ store });
+  start(app3, 'dilemma', 5);
+  app3.setNow(1000);
+  const chosen = [];
+  for (let i = 0; i < 5; i++) {
+    const b = app3.els.choiceList.children[0];
+    chosen.push(b.dataset.choice);
+    b.click();
+    app3.runTimers();
+  }
+  check('結果画面が出る', !app3.els.resultView.classList.contains('hidden'));
+  check('スコアを出さない', !/\d+\/\d+/.test(app3.els.scoreText.textContent), app3.els.scoreText.textContent);
+  check('ベスト記録を出さない', app3.els.bestScoreText.textContent === '', app3.els.bestScoreText.textContent);
+  check('ベストスコアを保存しない', store.sakitoQuizBestScores === undefined, store.sakitoQuizBestScores);
+  check('結果ラベルにカテゴリ名', app3.els.resultLabel.textContent === '究極の選択・5問', app3.els.resultLabel.textContent);
+  check('選んだものが一覧に並ぶ',
+    chosen.every(c => app3.els.resultList.children.some(li => li.innerHTML.includes(c))));
+}
+
 console.log('=== 5. 達人コース: 全カテゴリが混ざる ===');
 {
   const kinds = new Set();
@@ -474,6 +542,7 @@ console.log('=== 5. 達人コース: 全カテゴリが混ざる ===');
     }
   }
   check('8カテゴリすべて出現', kinds.size === 8, [...kinds].sort().join(','));
+  check('採点しないカテゴリは混ざらない', !kinds.has('dilemma'), [...kinds].sort().join(','));
   check('全問正解', correct === total, correct + '/' + total);
 }
 
