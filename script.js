@@ -1,5 +1,5 @@
 (function () {
-  const APP_VERSION = '0.12.0';
+  const APP_VERSION = '0.13.0';
   let TOTAL = 5;
   const NEXT_QUESTION_DELAY_MS = 2000;
   let questions = [];
@@ -545,7 +545,26 @@
   // 読めるときだけ数値とみなす。
   // 文中から数詞らしき部分だけを拾う方式にすると、「わかりません」の「ません」が
   // 「せん(1000)」に化けるような誤爆が起きるため、全体一致で判定する
-  const KANA_FILLER_RE = /こたえは|こたえ|せいかいは|えっと|あのー|あの|たぶん|だとおもいます|とおもいます|ですね|です|だよ|かな|だ$/g;
+  // 「こたえは〜です」のような前置き・語尾。音声認識はこれらを込みで返してくるので、
+  // 剥がした形も答えの候補として扱う。算数(ひらがなの数詞)と記述式の両方で使う
+  const ANSWER_PREFIXES = ['こたえは', 'こたえ', 'せいかいは', 'せいかい', 'えっと', 'えーと', 'あのー', 'たぶん', 'たしか', 'うーん'];
+  const ANSWER_SUFFIXES = ['だとおもいます', 'とおもいます', 'だとおもう', 'とおもう', 'じゃないかな', 'じゃない', 'ですね', 'です', 'だよ', 'だね', 'かな', 'かも', 'だ'];
+
+  // 元の文字列と、前置き・語尾を剥がしていった途中経過をすべて返す。
+  // 剥がしすぎて答えそのものを削ってしまっても元の形が候補に残るため、取りこぼさない
+  function answerCandidates(text) {
+    const out = [];
+    let s = text;
+    for (let i = 0; i < 6 && s; i++) { // 剥がせなくなるまで(念のため回数に上限をつける)
+      out.push(s);
+      const pre = ANSWER_PREFIXES.find(p => s.startsWith(p) && s.length > p.length);
+      if (pre) { s = s.slice(pre.length); continue; }
+      const suf = ANSWER_SUFFIXES.find(p => s.endsWith(p) && s.length > p.length);
+      if (suf) { s = s.slice(0, -suf.length); continue; }
+      break;
+    }
+    return out;
+  }
 
   function kanaToNumber(str) {
     let section = 0, digit = null, i = 0;
@@ -582,11 +601,13 @@
       const n = kanjiToNumber(kanjiMatch[0]);
       if (n !== null) return n;
     }
-    // 最後にひらがなの読みを試す。カタカナで返ってくることもあるので寄せておく
+    // 最後にひらがなの読みを試す。カタカナで返ってくることもあるので寄せておく。
+    // 前置き・語尾を剥がした形も試すが、文中からの部分一致では拾わない
+    // (「わかりません」の「ません」が「せん(1000)」に化けるため)
     const kana = s.replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60))
-      .replace(/[\s、。!?！？]/g, '')
-      .replace(KANA_FILLER_RE, '');
-    return kana ? kanaToNumber(kana) : null;
+      .replace(/[\s、。!?！？]/g, '');
+    const hit = answerCandidates(kana).map(kanaToNumber).find(n => n !== null);
+    return hit === undefined ? null : hit;
   }
 
   // ---- なぞなぞ・漢字クイズの回答テキスト照合 ----
@@ -597,14 +618,18 @@
       .toLowerCase();
   }
 
-  // 音声認識やテキスト入力は言い回しがぶれるため、部分一致も正解とみなす
-  // (「こたえは、とうじ、だとおもいます」→「とうじ」)
+  // 音声認識やテキスト入力は「こたえは、とうじ、だとおもいます」のように前置き・語尾がつく。
+  // 以前は素朴な部分一致で拾っていたが、「くも」のような短い答えだと無関係な発話にも
+  // 含まれてしまい誤って正解になる。定型句を剥がした候補との完全一致を基本とし、
+  // 3文字以上の答えに限って、想定外の言い回しへの保険として部分一致も残している
   function isTextAnswerCorrect(rawText, accepted) {
     const norm = normalizeAnswerText(rawText);
     if (!norm) return false;
+    const cands = answerCandidates(norm);
     return accepted.some(ans => {
       const a = normalizeAnswerText(ans);
-      return norm === a || norm.includes(a);
+      if (!a) return false;
+      return cands.indexOf(a) !== -1 || (a.length >= 3 && norm.includes(a));
     });
   }
 

@@ -626,14 +626,53 @@ console.log('=== 8b. 四択は完全一致で採点する ===');
   check('正解を含む誤答を試せた', checked > 0, checked + '件');
   check('誤答が正解と判定されない', wrongAcceptedAsCorrect === 0, wrongAcceptedAsCorrect + '件');
 
-  // 一方、記述式は言い回しのぶれを許す(部分一致)まま
+  // 一方、記述式は言い回しのぶれを許す
   const app2 = buildApp();
   start(app2, 'riddle', 20);
   const sol = solve(app2);
   app2.els.textInput.value = 'こたえは' + sol.value + 'だとおもいます';
   app2.els.submitBtn.click();
-  check('記述式は部分一致のまま正解になる', app2.els.statusLine.textContent.startsWith('正解'),
+  check('記述式は前置き・語尾つきでも正解になる', app2.els.statusLine.textContent.startsWith('正解'),
     app2.els.statusLine.textContent);
+}
+
+console.log('=== 8b-2. 記述式は短い答えを文中から拾わない ===');
+{
+  // 「くも」のような短い答えは、部分一致で採点すると「ぼくもわからない」のような
+  // 無関係な発話でも正解になってしまう。答えを含んでいても不正解にすることを確かめる
+  const app = buildApp();
+  let shortChecked = 0, falsePositive = 0, phrasedOk = 0, phrasedTried = 0;
+  for (let round = 0; round < 30 && shortChecked < 15; round++) {
+    app.els.quitBtn.click();
+    start(app, 'kanji', 20);
+    for (let i = 0; i < 20; i++) {
+      const sol = solve(app);
+      const ans = String(sol.value);
+      // 画数の設問は数値なので、文中の数字を拾うのが正しい挙動。読み方だけを見る
+      const isText = app.els.choiceList.classList.contains('hidden')
+        && app.els.textInput.inputMode === 'text';
+      if (isText && ans.length <= 2 && shortChecked < 15) {
+        shortChecked++;
+        // 正解を部分文字列として含むだけの、答えになっていない発話
+        app.els.textInput.value = 'ぜんぜん' + ans + 'わからない';
+        app.els.submitBtn.click();
+        if (app.els.statusLine.textContent.startsWith('正解')) falsePositive++;
+      } else if (isText) {
+        // 前置き・語尾がついていても正しく採点されること
+        phrasedTried++;
+        app.els.textInput.value = 'えっと' + ans + 'です';
+        app.els.submitBtn.click();
+        if (app.els.statusLine.textContent.startsWith('正解')) phrasedOk++;
+      } else {
+        answerCurrent(app, true);
+      }
+      app.runTimers();
+    }
+  }
+  check('短い答えの設問を試せた', shortChecked > 0, shortChecked + '件');
+  check('答えを含むだけの発話は不正解になる', falsePositive === 0, falsePositive + '件');
+  check('前置き・語尾つきの解答は正解になる', phrasedTried > 0 && phrasedOk === phrasedTried,
+    phrasedOk + '/' + phrasedTried);
 }
 
 console.log('=== 8c. 数値の読み取り(数字・漢数字・ひらがな) ===');
