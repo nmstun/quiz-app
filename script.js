@@ -1,5 +1,5 @@
 (function () {
-  const APP_VERSION = '0.14.0';
+  const APP_VERSION = '0.15.0';
   let TOTAL = 5;
   const NEXT_QUESTION_DELAY_MS = 2000;
   let questions = [];
@@ -11,6 +11,11 @@
   let nextTimer = null; // 次の設問へ進めるタイマー。中断時に確実に止めるため保持する
   let quizStartTime = 0;
   let currentType = 'arith'; // CATEGORIES の id、または 'master'(達人)
+  // 「えんえん(おわりなし)」コース。正解が無いパーティークイズだけで使える。
+  // 終わりが無いので、設問はまとめて作らず ENDLESS_CHUNK 件ずつ継ぎ足していく
+  let endless = false;
+  const ENDLESS_CHUNK = 10;
+  let seenKeys = new Set(); // 1回のセット内で同じ設問を繰り返さないための記録
 
   const $ = id => document.getElementById(id);
   // 動作確認・問い合わせ時にどのビルドを見ているか分かるようにするため、
@@ -43,6 +48,7 @@
   const retryBtn = $('retryBtn');
   const courseChangeBtn = $('courseChangeBtn');
   const quitBtn = $('quitBtn');
+  const endlessCourseBtn = $('endlessCourseBtn');
   const courseBtns = document.querySelectorAll('.course-btn');
   const categoryBtns = $('categoryRow').querySelectorAll('.segmented-btn');
   const clearScoresBtn = $('clearScoresBtn');
@@ -307,21 +313,21 @@
   // 同じ設問が二度出てしまう。重複したら作り直し、それでも駄目なら諦めて採用する
   const questionKey = q => q.text + '|' + (q.choices || []).slice().sort().join(',');
   function generateUnique(count, make) {
-    const seen = new Set();
     return Array.from({ length: count }, () => {
       let q = make();
-      for (let retry = 0; retry < 20 && seen.has(questionKey(q)); retry++) q = make();
-      seen.add(questionKey(q));
+      for (let retry = 0; retry < 20 && seenKeys.has(questionKey(q)); retry++) q = make();
+      seenKeys.add(questionKey(q));
       return q;
     });
   }
 
   function generateSet() {
+    seenKeys = new Set();
     const category = CATEGORY_BY_ID[currentType];
     if (category) {
       questions = category.bank
         ? sampleFromBank(category.bank(), TOTAL).map(item => category.generate(item))
-        : generateUnique(TOTAL, () => category.generate());
+        : generateUnique(endless ? ENDLESS_CHUNK : TOTAL, () => category.generate());
       return;
     }
     // 達人コース: 採点するカテゴリを設問ごとにランダムに混ぜて出題。
@@ -341,6 +347,12 @@
 
   // ---- 進捗UI ----
   function renderProgress() {
+    // えんえんコースは終わりが無く、ドットを並べても残りが読み取れないので出さない
+    progressEl.classList.toggle('hidden', endless);
+    if (endless) {
+      progressCountEl.textContent = `${current + 1}問目`;
+      return;
+    }
     progressEl.innerHTML = '';
     for (let i = 0; i < TOTAL; i++) {
       const dot = document.createElement('div');
@@ -646,7 +658,14 @@
     nextTimer = setTimeout(() => {
       nextTimer = null;
       current++;
-      if (current >= TOTAL) showResult();
+      // えんえんコースは終わらせず、手前まで来たら設問を継ぎ足す
+      if (endless) {
+        if (current >= questions.length) {
+          const category = CATEGORY_BY_ID[currentType];
+          questions = questions.concat(generateUnique(ENDLESS_CHUNK, () => category.generate()));
+        }
+        renderQuestion();
+      } else if (current >= TOTAL) showResult();
       else renderQuestion();
     }, NEXT_QUESTION_DELAY_MS);
   }
@@ -855,7 +874,7 @@
   // 選んだものを並べるだけの結果表示。正解が無いカテゴリはスコアもベスト記録も出さない
   function showUnscoredResult() {
     const timeMs = Date.now() - quizStartTime;
-    resultLabelEl.textContent = `${CATEGORY_LABELS[currentType]}・${TOTAL}問`;
+    resultLabelEl.textContent = `${CATEGORY_LABELS[currentType]}・${results.length}問`;
     scoreText.textContent = '🎉';
     scoreText.classList.remove('is-perfect');
     scoreMsg.textContent = 'えらんだのはこの通り。みんなはどうだった?';
@@ -952,6 +971,9 @@
       // 学年別範囲は、それぞれ算数・漢字(を含む達人コース)にのみ関係する
       arithGradeFieldEl.classList.toggle('hidden', currentType !== 'arith' && currentType !== 'master');
       kanjiGradeFieldEl.classList.toggle('hidden', currentType !== 'kanji' && currentType !== 'master');
+      // 「えんえん」は正解が無く記録も残らないカテゴリだけに出す
+      const cat = CATEGORY_BY_ID[currentType];
+      if (endlessCourseBtn) endlessCourseBtn.classList.toggle('hidden', !cat || cat.scored !== false);
     });
   });
 
@@ -965,11 +987,16 @@
   wireGradeButtons(arithGradeBtns, g => { arithGrade = g; });
   wireGradeButtons(kanjiGradeBtns, g => { kanjiGrade = g; });
 
-  // クイズ中に中断してコース選択へ戻る
+  // クイズ中に中断する。通常のコースはコース選択へ戻るだけだが、えんえんコースは
+  // 「やめる」がそのまま終了操作なので、それまでに選んだものを結果として見せる
   quitBtn.addEventListener('click', () => {
     cancelNextTimer();
     awaitingNext = false;
     setInputsDisabled(true); // 進行中の音声認識を確実に止める
+    if (endless && results.length > 0) {
+      showResult();
+      return;
+    }
     quizView.classList.add('hidden');
     resultView.classList.add('hidden');
     courseView.classList.remove('hidden');
@@ -977,7 +1004,10 @@
 
   courseBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      TOTAL = parseInt(btn.dataset.count, 10);
+      const count = parseInt(btn.dataset.count, 10);
+      endless = count === 0;
+      // TOTAL は結果表示やベストスコアのキーにも使うので、えんえんでも触らない
+      if (!endless) TOTAL = count;
       courseView.classList.add('hidden');
       startQuiz();
     });
@@ -985,6 +1015,7 @@
 
   function startQuiz() {
     cancelNextTimer();
+    quitBtn.textContent = endless ? '← おわる' : '← やめる';
     current = 0;
     results = [];
     quizStartTime = Date.now();

@@ -77,7 +77,8 @@ function buildApp(opts = {}) {
     'choiceList', 'note', 'courseView', 'quizView', 'resultView', 'scoreText', 'scoreMsg',
     'timeText', 'bestScoreText', 'resultLabel', 'resultList', 'retryBtn', 'courseChangeBtn',
     'quitBtn', 'clearScoresBtn', 'clearScoresMsg', 'seToggleBtn', 'categoryRow',
-    'arithGradeField', 'arithGradeRow', 'kanjiGradeField', 'kanjiGradeRow'];
+    'arithGradeField', 'arithGradeRow', 'kanjiGradeField', 'kanjiGradeRow',
+    'endlessCourseBtn'];
   const els = {};
   ids.forEach(id => els[id] = makeEl(id));
   els.quizView.classList.add('hidden');
@@ -101,6 +102,11 @@ function buildApp(opts = {}) {
     b.dataset.count = String(n);
     courses[n] = b;
   });
+  // 「えんえん」ボタンは index.html では id 付きのコースボタン1つなので、
+  // スタブでも同じ要素をコース一覧と els の両方から参照させる
+  els.endlessCourseBtn.classList.add('course-btn', 'hidden');
+  els.endlessCourseBtn.dataset.count = '0';
+  courses[0] = els.endlessCourseBtn;
 
   const timers = [];
   let seq = 1;
@@ -725,6 +731,73 @@ console.log('=== 8c. 数値の読み取り(数字・漢数字・ひらがな) ==
     app.els.statusLine.textContent.includes('聞き取れ') && app.els.progressCount.textContent === before,
     app.els.statusLine.textContent);
   check('「わかりません」が数として通らない', app.pendingTimers() === 0);
+}
+
+console.log('=== 8d. 究極の選択の「えんえん」コース ===');
+{
+  const app = buildApp();
+
+  // 出せるのは正解が無いカテゴリだけ
+  app.cats.arith.click();
+  check('算数では えんえん を出さない', app.els.endlessCourseBtn.classList.contains('hidden'));
+  app.cats.master.click();
+  check('達人でも えんえん を出さない', app.els.endlessCourseBtn.classList.contains('hidden'));
+  app.cats.dilemma.click();
+  check('究極の選択では えんえん を出す', !app.els.endlessCourseBtn.classList.contains('hidden'));
+
+  app.courses[0].click();
+  check('えんえん: 進捗ドットを隠す', app.els.progress.classList.contains('hidden'));
+  check('えんえん: 何問目かを数字で出す', app.els.progressCount.textContent === '1問目',
+    app.els.progressCount.textContent);
+  check('えんえん: やめるボタンが「おわる」', app.els.quitBtn.textContent.includes('おわる'),
+    app.els.quitBtn.textContent);
+
+  // 継ぎ足しが効いているか。ENDLESS_CHUNK(10)を大きく超えても終わらないこと
+  // 設問文はお題(「どっちをえらぶ?」など)で、中身は2つの選択肢のほう。
+  // 重複判定はお題と選択肢の組で見る
+  const seen = new Set();
+  let ended = false;
+  for (let i = 0; i < 35; i++) {
+    if (!app.els.resultView.classList.contains('hidden')) { ended = true; break; }
+    const pair = app.els.choiceList.children.map(b => b.dataset.choice).sort().join('|');
+    seen.add(app.els.question.textContent + '/' + pair);
+    app.els.choiceList.children[0].click();
+    app.runTimers();
+  }
+  check('えんえん: 35問答えても終わらない', !ended);
+  check('えんえん: 36問目を出している', app.els.progressCount.textContent === '36問目',
+    app.els.progressCount.textContent);
+  check('えんえん: 設問が重複しない', seen.size === 35, seen.size + '種類 / 35問');
+
+  // 「おわる」でそれまでに選んだ分が結果に出る
+  app.els.quitBtn.click();
+  check('えんえん: おわるで結果画面へ', !app.els.resultView.classList.contains('hidden'));
+  check('えんえん: 答えた分だけ並ぶ', app.els.resultList.children.length === 35,
+    app.els.resultList.children.length + '件');
+  check('えんえん: 結果ラベルが答えた問数', app.els.resultLabel.textContent === '究極の選択・35問',
+    app.els.resultLabel.textContent);
+  check('えんえん: 採点しないのでスコアは出さない', app.els.scoreText.textContent === '🎉');
+
+  // 1問も答えずにやめたときは結果ではなくコース選択へ戻る
+  const app2 = buildApp();
+  app2.cats.dilemma.click();
+  app2.courses[0].click();
+  app2.els.quitBtn.click();
+  check('えんえん: 未回答でやめるとコース選択へ戻る',
+    !app2.els.courseView.classList.contains('hidden')
+    && app2.els.resultView.classList.contains('hidden'));
+
+  // えんえんの後に通常コースを選ぶと、ちゃんと問題数で終わる
+  const app3 = buildApp();
+  app3.cats.dilemma.click();
+  app3.courses[0].click();
+  app3.els.quitBtn.click();
+  app3.els.courseChangeBtn.click();
+  start(app3, 'dilemma', 5);
+  check('えんえんの次に5問コースを選べる', app3.els.progressCount.textContent === '1 / 5',
+    app3.els.progressCount.textContent);
+  for (let i = 0; i < 5; i++) { app3.els.choiceList.children[0].click(); app3.runTimers(); }
+  check('5問コースはちゃんと終わる', !app3.els.resultView.classList.contains('hidden'));
 }
 
 console.log('=== 9. 進捗表示と問題文サイズの段階 ===');
