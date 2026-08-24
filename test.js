@@ -78,9 +78,10 @@ function buildApp(opts = {}) {
     'timeText', 'bestScoreText', 'resultLabel', 'resultList', 'retryBtn', 'courseChangeBtn',
     'quitBtn', 'clearScoresBtn', 'clearScoresMsg', 'seToggleBtn', 'categoryRow',
     'arithGradeField', 'arithGradeRow', 'kanjiGradeField', 'kanjiGradeRow',
-    'endlessCourseBtn'];
+    'endlessCourseBtn', 'playerRow', 'turnBadge'];
   const els = {};
   ids.forEach(id => els[id] = makeEl(id));
+  els.turnBadge.classList.add('hidden');
   els.quizView.classList.add('hidden');
   els.resultView.classList.add('hidden');
   els.choiceList.classList.add('hidden');
@@ -89,6 +90,10 @@ function buildApp(opts = {}) {
   const cats = {};
   CATEGORY_TYPES.forEach((t, i) => cats[t] = seg('type', t, i === 0));
   els.categoryRow.querySelectorAll = () => Object.values(cats);
+
+  const players = {};
+  [1, 2].forEach(n => players[n] = seg('players', String(n), n === 1));
+  els.playerRow.querySelectorAll = () => Object.values(players);
 
   const aGrades = {}, kGrades = {};
   ['low', 'mid', 'high'].forEach(g => aGrades[g] = seg('grade', g, g === 'mid'));
@@ -138,7 +143,7 @@ function buildApp(opts = {}) {
   vm.runInContext(code, sandbox);
 
   return {
-    els, cats, aGrades, kGrades, courses, store,
+    els, cats, aGrades, kGrades, courses, players, store,
     setNow: v => { now = v; },
     // 保留中(未クリア)のタイマーだけを発火させる
     runTimers() {
@@ -275,7 +280,10 @@ function answerCurrent(app, correct = true) {
     (correct ? btns.find(b => b.dataset.choice === sol.value)
              : btns.find(b => b.dataset.choice !== sol.value)).click();
   } else {
-    app.els.textInput.value = correct ? sol.value : (sol.value + 'zz9');
+    // 数値で答える設問(算数・画数)は、末尾に文字を足しても数字部分が拾われて
+    // 正解になってしまう。誤答にするには別の数を入れる必要がある
+    const wrong = /^-?\d+$/.test(sol.value) ? String(Number(sol.value) + 1) : sol.value + 'zz9';
+    app.els.textInput.value = correct ? sol.value : wrong;
     app.els.submitBtn.click();
   }
   return { ok: true, expected: sol.value };
@@ -648,7 +656,9 @@ console.log('=== 8b-2. 記述式は短い答えを文中から拾わない ===')
   // 無関係な発話でも正解になってしまう。答えを含んでいても不正解にすることを確かめる
   const app = buildApp();
   let shortChecked = 0, falsePositive = 0, phrasedOk = 0, phrasedTried = 0;
-  for (let round = 0; round < 30 && shortChecked < 15; round++) {
+  // 漢字の読みは8割以上が2文字以下なので、短い答えの検証だけで打ち切ると
+  // 前置き・語尾つきの検証が0件のまま終わる回がある。両方そろうまで回す
+  for (let round = 0; round < 40 && (shortChecked < 15 || phrasedTried < 10); round++) {
     app.els.quitBtn.click();
     start(app, 'kanji', 20);
     for (let i = 0; i < 20; i++) {
@@ -798,6 +808,81 @@ console.log('=== 8d. 究極の選択の「えんえん」コース ===');
     app3.els.progressCount.textContent);
   for (let i = 0; i < 5; i++) { app3.els.choiceList.children[0].click(); app3.runTimers(); }
   check('5問コースはちゃんと終わる', !app3.els.resultView.classList.contains('hidden'));
+}
+
+console.log('=== 8e. ふたりで交互モード ===');
+{
+  // ふたりのときは「ひとりTOTAL問ずつ」なので、セット全体は倍になる
+  const app = buildApp();
+  app.cats.arith.click();
+  app.players[2].click();
+  app.courses[5].click();
+  check('ふたり: 出題数が人数倍になる', app.els.progressCount.textContent === '1 / 10',
+    app.els.progressCount.textContent);
+  check('ふたり: 進捗ドットも人数倍', app.els.progress.children.length === 10,
+    app.els.progress.children.length + '個');
+  check('ふたり: 手番バッジを出す', !app.els.turnBadge.classList.contains('hidden'));
+  check('ふたり: 1問目は1人目', app.els.turnBadge.textContent === 'プレイヤー1のばん',
+    app.els.turnBadge.textContent);
+
+  // 1問ずつ手番が入れ替わり、1人目だけ全問正解する
+  const turns = [];
+  for (let i = 0; i < 10; i++) {
+    turns.push(app.els.turnBadge.textContent);
+    answerCurrent(app, i % 2 === 0);
+    app.runTimers();
+  }
+  check('ふたり: 1問ごとに手番が入れ替わる',
+    turns.every((t, i) => t === (i % 2 === 0 ? 'プレイヤー1のばん' : 'プレイヤー2のばん')),
+    turns.join(','));
+  check('ふたり: 対戦スコアを出す', app.els.scoreText.textContent === '5 - 0',
+    app.els.scoreText.textContent);
+  check('ふたり: 勝者を出す', app.els.scoreMsg.textContent === 'プレイヤー1のかち！',
+    app.els.scoreMsg.textContent);
+  check('ふたり: ラベルは「ふたりで5問ずつ」', app.els.resultLabel.textContent === '算数・ふたりで5問ずつ',
+    app.els.resultLabel.textContent);
+  check('ふたり: 結果一覧に手番の印がつく',
+    app.els.resultList.children.filter(li => li.innerHTML.includes('player-tag')).length === 10);
+  check('ふたり: ベストスコアを保存しない', app.store.sakitoQuizBestScores === undefined,
+    String(app.store.sakitoQuizBestScores));
+
+  // ひきわけの文言
+  const app2 = buildApp();
+  app2.cats.arith.click();
+  app2.players[2].click();
+  app2.courses[5].click();
+  for (let i = 0; i < 10; i++) { answerCurrent(app2, true); app2.runTimers(); }
+  check('ふたり: ひきわけを出す', app2.els.scoreMsg.textContent === 'ひきわけ！ ふたりとも5問正解。',
+    app2.els.scoreMsg.textContent);
+
+  // ふたり → ひとりに戻したときに出題数と記録が元通りになる
+  const app3 = buildApp();
+  app3.cats.arith.click();
+  app3.players[2].click();
+  app3.courses[5].click();
+  app3.els.quitBtn.click();
+  app3.players[1].click();
+  app3.courses[5].click();
+  check('ひとりに戻すと出題数も戻る', app3.els.progressCount.textContent === '1 / 5',
+    app3.els.progressCount.textContent);
+  check('ひとりに戻すと手番バッジは消える', app3.els.turnBadge.classList.contains('hidden'));
+  for (let i = 0; i < 5; i++) { answerCurrent(app3, true); app3.runTimers(); }
+  check('ひとりに戻すとベストスコアを保存する', !!app3.store.sakitoQuizBestScores,
+    String(app3.store.sakitoQuizBestScores));
+  check('ひとりのスコア表示は n/N のまま', app3.els.scoreText.textContent === '5/5',
+    app3.els.scoreText.textContent);
+
+  // 採点しないカテゴリでも手番は回る
+  const app4 = buildApp();
+  app4.cats.dilemma.click();
+  app4.players[2].click();
+  app4.courses[5].click();
+  check('究極の選択でも出題数は人数倍', app4.els.progressCount.textContent === '1 / 10',
+    app4.els.progressCount.textContent);
+  for (let i = 0; i < 10; i++) { app4.els.choiceList.children[0].click(); app4.runTimers(); }
+  check('究極の選択: スコアは出さない', app4.els.scoreText.textContent === '🎉');
+  check('究極の選択: 一覧に手番の印がつく',
+    app4.els.resultList.children.filter(li => li.innerHTML.includes('player-tag')).length === 10);
 }
 
 console.log('=== 9. 進捗表示と問題文サイズの段階 ===');

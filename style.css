@@ -16,6 +16,9 @@
   --correct-soft: #e6f7f0;
   --wrong: #dd4f4f;
   --wrong-soft: #fdeded;
+  /* ふたりで交互モードの2人目。1人目は --primary をそのまま使う */
+  --p2: #b4620f;
+  --p2-soft: #fbeedd;
   --shadow-card: 0 1px 2px rgba(24, 32, 56, .04), 0 12px 32px rgba(24, 32, 56, .07);
   --shadow-raised: 0 1px 2px rgba(24, 32, 56, .06), 0 2px 8px rgba(24, 32, 56, .06);
   --radius-lg: 20px;
@@ -41,6 +44,8 @@
     --correct-soft: #1c3630;
     --wrong: #ff8080;
     --wrong-soft: #3a2529;
+    --p2: #f0a765;
+    --p2-soft: #3a2c1e;
     --shadow-card: 0 1px 2px rgba(0, 0, 0, .3), 0 16px 40px rgba(0, 0, 0, .35);
     --shadow-raised: 0 1px 3px rgba(0, 0, 0, .35);
   }
@@ -265,6 +270,39 @@ h1 {
   font-weight: 700;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+}
+
+/* ---------- ふたりで交互モード ---------- */
+/* 手番を取り違えると答える人が変わってしまうので、色と文字の両方で示す */
+.turn-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.turn-badge--p2 {
+  background: var(--p2-soft);
+  color: var(--p2);
+}
+/* 結果一覧の各行の頭につく「1P」「2P」 */
+.player-tag {
+  display: inline-block;
+  min-width: 24px;
+  margin-right: 6px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+.player-tag--p2 {
+  background: var(--p2-soft);
+  color: var(--p2);
 }
 
 /* ---------- 進捗バー ---------- */
@@ -535,7 +573,9 @@ h1 {
   margin: 4px 0 20px;
   border-radius: 999px;
   background: var(--surface-sunken);
-  white-space: nowrap;
+  /* 記録の行(「ベスト 5/5・12.3秒」)は途中で折り返すと読みにくいので基本は1行。
+     ただし文言が長いときにカードからはみ出さないよう、幅は超えさせない */
+  max-width: 100%;
 }
 .result .best-score.is-new {
   color: var(--primary-strong);

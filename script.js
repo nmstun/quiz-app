@@ -1,5 +1,5 @@
 (function () {
-  const APP_VERSION = '0.15.0';
+  const APP_VERSION = '0.16.0';
   let TOTAL = 5;
   const NEXT_QUESTION_DELAY_MS = 2000;
   let questions = [];
@@ -16,6 +16,13 @@
   let endless = false;
   const ENDLESS_CHUNK = 10;
   let seenKeys = new Set(); // 1回のセット内で同じ設問を繰り返さないための記録
+  // ふたりで交互モード。1問ずつ手番を回す。ふたりのときは「TOTAL問ずつ」出すので
+  // セット全体の設問数は TOTAL × 人数 になる
+  let playerCount = 1;
+  let setSize = TOTAL;
+  const PLAYER_LABELS = ['プレイヤー1', 'プレイヤー2'];
+  // 何問目かで手番が決まる(0問目→1人目、1問目→2人目、…)
+  const playerOf = i => i % playerCount;
 
   const $ = id => document.getElementById(id);
   // 動作確認・問い合わせ時にどのビルドを見ているか分かるようにするため、
@@ -49,8 +56,10 @@
   const courseChangeBtn = $('courseChangeBtn');
   const quitBtn = $('quitBtn');
   const endlessCourseBtn = $('endlessCourseBtn');
+  const turnBadgeEl = $('turnBadge');
   const courseBtns = document.querySelectorAll('.course-btn');
   const categoryBtns = $('categoryRow').querySelectorAll('.segmented-btn');
+  const playerBtns = $('playerRow').querySelectorAll('.segmented-btn');
   const clearScoresBtn = $('clearScoresBtn');
   const clearScoresMsgEl = $('clearScoresMsg');
   const seToggleBtn = $('seToggleBtn');
@@ -326,8 +335,8 @@
     const category = CATEGORY_BY_ID[currentType];
     if (category) {
       questions = category.bank
-        ? sampleFromBank(category.bank(), TOTAL).map(item => category.generate(item))
-        : generateUnique(endless ? ENDLESS_CHUNK : TOTAL, () => category.generate());
+        ? sampleFromBank(category.bank(), setSize).map(item => category.generate(item))
+        : generateUnique(endless ? ENDLESS_CHUNK : setSize, () => category.generate());
       return;
     }
     // 達人コース: 採点するカテゴリを設問ごとにランダムに混ぜて出題。
@@ -336,9 +345,9 @@
     const mixed = CATEGORIES.filter(c => c.scored !== false);
     const pools = {};
     mixed.forEach(c => {
-      if (c.bank) pools[c.id] = { items: sampleFromBank(c.bank(), TOTAL), used: 0 };
+      if (c.bank) pools[c.id] = { items: sampleFromBank(c.bank(), setSize), used: 0 };
     });
-    questions = Array.from({ length: TOTAL }, () => {
+    questions = Array.from({ length: setSize }, () => {
       const c = mixed[randInt(0, mixed.length - 1)];
       const pool = pools[c.id];
       return pool ? c.generate(pool.items[pool.used++]) : c.generate();
@@ -348,13 +357,14 @@
   // ---- 進捗UI ----
   function renderProgress() {
     // えんえんコースは終わりが無く、ドットを並べても残りが読み取れないので出さない
+    renderTurn();
     progressEl.classList.toggle('hidden', endless);
     if (endless) {
       progressCountEl.textContent = `${current + 1}問目`;
       return;
     }
     progressEl.innerHTML = '';
-    for (let i = 0; i < TOTAL; i++) {
+    for (let i = 0; i < setSize; i++) {
       const dot = document.createElement('div');
       dot.className = 'dot';
       if (i < results.length) {
@@ -367,7 +377,16 @@
       progressEl.appendChild(dot);
     }
     // ドットだけでは残り問題数が読み取りにくいため、数字でも示す
-    progressCountEl.textContent = `${Math.min(current + 1, TOTAL)} / ${TOTAL}`;
+    progressCountEl.textContent = `${Math.min(current + 1, setSize)} / ${setSize}`;
+  }
+
+  // いま誰の番かの表示。ひとりのときは出さない
+  function renderTurn() {
+    turnBadgeEl.classList.toggle('hidden', playerCount < 2);
+    if (playerCount < 2) return;
+    const p = playerOf(current);
+    turnBadgeEl.textContent = `${PLAYER_LABELS[p]}のばん`;
+    turnBadgeEl.classList.toggle('turn-badge--p2', p === 1);
   }
 
   // 直前のクラスを消してから付け直し、同じアニメーションを毎問再生させる
@@ -665,7 +684,7 @@
           questions = questions.concat(generateUnique(ENDLESS_CHUNK, () => category.generate()));
         }
         renderQuestion();
-      } else if (current >= TOTAL) showResult();
+      } else if (current >= setSize) showResult();
       else renderQuestion();
     }, NEXT_QUESTION_DELAY_MS);
   }
@@ -687,7 +706,7 @@
       if (!picked) return;
       awaitingNext = true;
       setInputsDisabled(true);
-      results.push({ q: question.text, userAnswer: picked, correct: null });
+      results.push({ q: question.text, userAnswer: picked, correct: null, player: playerOf(current) });
       statusLineEl.textContent = `「${picked}」をえらんだ!`;
       statusLineEl.className = 'status-line picked';
       Array.from(choiceListEl.children).forEach(btn => {
@@ -733,7 +752,8 @@
       q: question.text,
       correctAnswer: correctAnswerDisplay,
       userAnswer: userAnswerDisplay,
-      correct: isCorrect
+      correct: isCorrect,
+      player: playerOf(current)
     });
 
     statusLineEl.textContent = isCorrect
@@ -886,9 +906,15 @@
     resultList.innerHTML = '';
     results.forEach(r => {
       const li = document.createElement('li');
-      li.innerHTML = `<span>${r.q}</span><span class="picked">${r.userAnswer}</span>`;
+      li.innerHTML = `<span>${playerTag(r)}${r.q}</span><span class="picked">${r.userAnswer}</span>`;
       resultList.appendChild(li);
     });
+  }
+
+  // ふたりで交互のときだけ、結果一覧の各行に誰の問題だったかを添える
+  function playerTag(r) {
+    if (playerCount < 2 || r.player === undefined) return '';
+    return `<span class="player-tag${r.player === 1 ? ' player-tag--p2' : ''}">${r.player + 1}P</span>`;
   }
 
   // ---- 結果表示 ----
@@ -901,15 +927,23 @@
       return;
     }
 
-    const correctCount = results.filter(r => r.correct).length;
     const timeMs = Date.now() - quizStartTime;
-    scoreText.textContent = `${correctCount}/${TOTAL}`;
-    scoreText.classList.toggle('is-perfect', correctCount === TOTAL);
     timeTextEl.textContent = `所要時間: ${formatDuration(timeMs)}`;
 
+    // ふたりで交互のときは、ひとり分のスコアではなく対戦結果として見せる。
+    // ベストスコアはひとりで解いた記録と混ざらないよう、保存も表示もしない
+    if (playerCount >= 2) {
+      showVersusResult();
+      return;
+    }
+
+    const correctCount = results.filter(r => r.correct).length;
+    scoreText.textContent = `${correctCount}/${setSize}`;
+    scoreText.classList.toggle('is-perfect', correctCount === setSize);
+
     let msg;
-    if (correctCount === TOTAL) msg = 'パーフェクト！お見事です。';
-    else if (correctCount >= TOTAL * 0.6) msg = 'いい調子！もう少しで満点。';
+    if (correctCount === setSize) msg = 'パーフェクト！お見事です。';
+    else if (correctCount >= setSize * 0.6) msg = 'いい調子！もう少しで満点。';
     else msg = '練習あるのみ。もう一度挑戦してみよう。';
     scoreMsg.textContent = msg;
 
@@ -924,7 +958,7 @@
       categoryLabel = `漢字・${KANJI_GRADE_LABELS[kanjiGrade]}`;
     }
     const scores = loadBestScores();
-    const thisResult = { correct: correctCount, total: TOTAL, timeMs };
+    const thisResult = { correct: correctCount, total: setSize, timeMs };
     const prevBest = scores[courseKey];
     const isNewBest = !prevBest || isBetterScore(thisResult, prevBest);
     if (isNewBest) {
@@ -932,20 +966,46 @@
       saveBestScores(scores);
     }
     // どのコースの結果かは上部ラベルで示し、記録は1行に収まる短さに保つ
-    resultLabelEl.textContent = `${categoryLabel}・${TOTAL}問`;
+    resultLabelEl.textContent = `${categoryLabel}・${setSize}問`;
     const best = scores[courseKey];
     bestScoreEl.textContent = (isNewBest ? '🏆 新記録！ ベスト ' : 'ベスト ')
       + `${best.correct}/${best.total}・${formatDuration(best.timeMs)}`;
     bestScoreEl.classList.toggle('is-new', isNewBest);
     bestScoreEl.classList.remove('hidden');
 
+    renderResultList();
+  }
+
+  function renderResultList() {
     resultList.innerHTML = '';
     results.forEach(r => {
       const li = document.createElement('li');
       const okClass = r.correct ? 'ok' : 'ng';
-      li.innerHTML = `<span>${r.q} ${r.correctAnswer}</span><span class="${okClass}">${r.correct ? '正解' : `あなた: ${r.userAnswer}`}</span>`;
+      const mine = playerCount >= 2 ? `${r.player + 1}P: ` : 'あなた: ';
+      li.innerHTML = `<span>${playerTag(r)}${r.q} ${r.correctAnswer}</span>`
+        + `<span class="${okClass}">${r.correct ? '正解' : `${mine}${r.userAnswer}`}</span>`;
       resultList.appendChild(li);
     });
+  }
+
+  // ふたりで交互モードの結果。勝ち負けが一目で分かることを優先する
+  function showVersusResult() {
+    const perPlayer = PLAYER_LABELS.map((_, p) =>
+      results.filter(r => r.player === p && r.correct).length);
+    scoreText.textContent = perPlayer.join(' - ');
+    scoreText.classList.remove('is-perfect');
+
+    const [p1, p2] = perPlayer;
+    scoreMsg.textContent = p1 === p2
+      ? `ひきわけ！ ふたりとも${p1}問正解。`
+      : `${PLAYER_LABELS[p1 > p2 ? 0 : 1]}のかち！`;
+
+    resultLabelEl.textContent = `${CATEGORY_LABELS[currentType]}・ふたりで${TOTAL}問ずつ`;
+    // 記録はひとりで解いたときのものと比べられないので残さない
+    bestScoreEl.textContent = 'ふたりのときは記録に残りません';
+    bestScoreEl.classList.remove('is-new', 'hidden');
+
+    renderResultList();
   }
 
   retryBtn.addEventListener('click', startQuiz);
@@ -974,6 +1034,13 @@
       // 「えんえん」は正解が無く記録も残らないカテゴリだけに出す
       const cat = CATEGORY_BY_ID[currentType];
       if (endlessCourseBtn) endlessCourseBtn.classList.toggle('hidden', !cat || cat.scored !== false);
+    });
+  });
+
+  playerBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      playerCount = parseInt(btn.dataset.players, 10);
+      setActive(playerBtns, btn);
     });
   });
 
@@ -1008,6 +1075,8 @@
       endless = count === 0;
       // TOTAL は結果表示やベストスコアのキーにも使うので、えんえんでも触らない
       if (!endless) TOTAL = count;
+      // ふたりのときは「ひとりTOTAL問ずつ」なので、セット全体はその人数倍になる
+      setSize = TOTAL * playerCount;
       courseView.classList.add('hidden');
       startQuiz();
     });

@@ -67,6 +67,14 @@
     </div>
 
     <div class="field">
+      <span class="field-label">にんずう</span>
+      <div class="segmented" id="playerRow" role="group" aria-label="人数">
+        <button class="segmented-btn active" data-players="1" aria-pressed="true">ひとり</button>
+        <button class="segmented-btn" data-players="2" aria-pressed="false">ふたりで交互</button>
+      </div>
+    </div>
+
+    <div class="field">
       <span class="field-label">もんすう</span>
       <div class="course-list">
         <button class="course-btn" data-count="5">
@@ -99,6 +107,8 @@
   <div id="quizView" class="hidden">
     <div class="quiz-head">
       <button class="ghost-btn" id="quitBtn">← やめる</button>
+      <!-- ふたりで交互モードのときだけ、いま誰の番かを出す -->
+      <span class="turn-badge hidden" id="turnBadge"></span>
       <span class="progress-count" id="progressCount"></span>
     </div>
     <div class="progress" id="progress" aria-hidden="true"></div>
