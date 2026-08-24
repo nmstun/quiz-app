@@ -636,6 +636,58 @@ console.log('=== 8b. 四択は完全一致で採点する ===');
     app2.els.statusLine.textContent);
 }
 
+console.log('=== 8c. 数値の読み取り(数字・漢数字・ひらがな) ===');
+{
+  // extractNumber は script.js の内側にあるので、算数の設問に実際に答えさせて確かめる
+  const app = buildApp();
+  start(app, 'arith', 20);
+  const q = app.els.question.textContent;
+  const m = q.match(/^(-?\d+)\s*([+\-×÷])\s*(-?\d+)\s*=$/);
+  const a = +m[1], b = +m[3];
+  const answer = m[2] === '+' ? a + b : m[2] === '-' ? a - b : m[2] === '×' ? a * b : a / b;
+
+  // 正解を「ひらがな読み」に変換する(このテストのための素朴な実装)
+  function toKana(n) {
+    if (n === 0) return 'ぜろ';
+    const d = ['', 'いち', 'に', 'さん', 'よん', 'ご', 'ろく', 'なな', 'はち', 'きゅう'];
+    let out = '';
+    const th = Math.floor(n / 1000), h = Math.floor(n % 1000 / 100),
+          t = Math.floor(n % 100 / 10), o = n % 10;
+    if (th) out += (th === 1 ? '' : d[th]) + 'せん';
+    if (h) out += (h === 1 ? '' : d[h]) + 'ひゃく';
+    if (t) out += (t === 1 ? '' : d[t]) + 'じゅう';
+    if (o) out += d[o];
+    return out;
+  }
+  const kana = toKana(answer);
+
+  app.els.textInput.value = kana;
+  app.els.submitBtn.click();
+  check('ひらがなの読みで正解できる', app.els.statusLine.textContent.startsWith('正解'),
+    answer + ' → 「' + kana + '」 → ' + app.els.statusLine.textContent);
+  app.runTimers();
+
+  // 前置き・語尾が付いていても読み取れる
+  const q2 = app.els.question.textContent.match(/^(-?\d+)\s*([+\-×÷])\s*(-?\d+)\s*=$/);
+  const a2 = +q2[1], b2 = +q2[3];
+  const ans2 = q2[2] === '+' ? a2 + b2 : q2[2] === '-' ? a2 - b2 : q2[2] === '×' ? a2 * b2 : a2 / b2;
+  app.els.textInput.value = 'こたえは' + toKana(ans2) + 'です';
+  app.els.submitBtn.click();
+  check('「こたえは〜です」でも読み取れる', app.els.statusLine.textContent.startsWith('正解'),
+    app.els.statusLine.textContent);
+  app.runTimers();
+
+  // 数として読めない発話は、誤答ではなく「聞き取れない」として弾く。
+  // 「わかりません」の「ません」が「せん(1000)」に化けないことの確認でもある
+  const before = app.els.progressCount.textContent;
+  app.els.textInput.value = 'わかりません';
+  app.els.submitBtn.click();
+  check('数でない発話は採点せず聞き返す',
+    app.els.statusLine.textContent.includes('聞き取れ') && app.els.progressCount.textContent === before,
+    app.els.statusLine.textContent);
+  check('「わかりません」が数として通らない', app.pendingTimers() === 0);
+}
+
 console.log('=== 9. 進捗表示と問題文サイズの段階 ===');
 {
   const app = buildApp();

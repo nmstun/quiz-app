@@ -1,5 +1,5 @@
 (function () {
-  const APP_VERSION = '0.11.0';
+  const APP_VERSION = '0.12.0';
   let TOTAL = 5;
   const NEXT_QUESTION_DELAY_MS = 2000;
   let questions = [];
@@ -525,6 +525,47 @@
     return total;
   }
 
+  // ひらがなの数詞。音声認識は「13」ではなく「じゅうさん」と返すことがあるため、
+  // 読みからも数値を取れるようにする。
+  // 「さんびゃく」「はっせん」のような音便があるので、読み方の異体もすべて並べる
+  const KANA_DIGITS = {
+    'ぜろ': 0, 'れい': 0, 'いち': 1, 'いっ': 1, 'に': 2, 'さん': 3,
+    'よん': 4, 'し': 4, 'よ': 4, 'ご': 5, 'ろく': 6, 'ろっ': 6,
+    'なな': 7, 'しち': 7, 'はち': 8, 'はっ': 8, 'きゅう': 9, 'く': 9,
+  };
+  const KANA_UNITS = {
+    'せん': 1000, 'ぜん': 1000, 'ひゃく': 100, 'びゃく': 100, 'ぴゃく': 100,
+    'じゅう': 10, 'じゅっ': 10, 'じっ': 10,
+  };
+  // 長い読みから先に試す(「し」より「しち」、「く」より「きゅう」を優先)
+  const byLengthDesc = obj => Object.keys(obj).sort((a, b) => b.length - a.length);
+  const KANA_DIGIT_KEYS = byLengthDesc(KANA_DIGITS);
+  const KANA_UNIT_KEYS = byLengthDesc(KANA_UNITS);
+  // 「こたえは〜です」のような前置き・語尾。これを取り除いた残り全体が数詞として
+  // 読めるときだけ数値とみなす。
+  // 文中から数詞らしき部分だけを拾う方式にすると、「わかりません」の「ません」が
+  // 「せん(1000)」に化けるような誤爆が起きるため、全体一致で判定する
+  const KANA_FILLER_RE = /こたえは|こたえ|せいかいは|えっと|あのー|あの|たぶん|だとおもいます|とおもいます|ですね|です|だよ|かな|だ$/g;
+
+  function kanaToNumber(str) {
+    let section = 0, digit = null, i = 0;
+    while (i < str.length) {
+      const unit = KANA_UNIT_KEYS.find(k => str.startsWith(k, i));
+      if (unit) {
+        // 「ひゃく」のように数を伴わない場合は1つぶんとして数える
+        section += (digit === null ? 1 : digit) * KANA_UNITS[unit];
+        digit = null;
+        i += unit.length;
+        continue;
+      }
+      const d = KANA_DIGIT_KEYS.find(k => str.startsWith(k, i));
+      if (!d) return null; // 数として読めない字が混ざっている
+      digit = KANA_DIGITS[d];
+      i += d.length;
+    }
+    return section + (digit === null ? 0 : digit);
+  }
+
   function extractNumber(raw) {
     if (!raw) return null;
     let s = raw.trim();
@@ -541,7 +582,11 @@
       const n = kanjiToNumber(kanjiMatch[0]);
       if (n !== null) return n;
     }
-    return null;
+    // 最後にひらがなの読みを試す。カタカナで返ってくることもあるので寄せておく
+    const kana = s.replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60))
+      .replace(/[\s、。!?！？]/g, '')
+      .replace(KANA_FILLER_RE, '');
+    return kana ? kanaToNumber(kana) : null;
   }
 
   // ---- なぞなぞ・漢字クイズの回答テキスト照合 ----
