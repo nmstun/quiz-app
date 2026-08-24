@@ -14,6 +14,11 @@
 <link rel="icon" type="image/svg+xml" href="favicon.svg?v=3">
 <link rel="apple-touch-icon" href="apple-touch-icon.png?v=3">
 <link rel="manifest" href="manifest.webmanifest">
+<!-- iOSはmanifestのdisplayを見ないので、ホーム画面から全画面で開くには
+     この2つが要る。status-bar-styleは上部の時計まわりを背景になじませる -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="咲登クイズ">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>

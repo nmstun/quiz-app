@@ -1,5 +1,5 @@
 (function () {
-  const APP_VERSION = '0.10.0';
+  const APP_VERSION = '0.11.0';
   let TOTAL = 5;
   const NEXT_QUESTION_DELAY_MS = 2000;
   let questions = [];
@@ -925,4 +925,15 @@
   }
 
   setupRecognition();
+
+  // オフラインでも起動できるようにする。file:// で開いた場合やテスト用の
+  // サンドボックス(navigator が無い)では登録できないので、その場合は何もしない
+  if (typeof navigator !== 'undefined' && navigator.serviceWorker &&
+      typeof location !== 'undefined' && /^https?:$/.test(location.protocol)) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {
+        // 登録に失敗してもアプリ自体は問題なく動くので握りつぶす
+      });
+    });
+  }
 })();

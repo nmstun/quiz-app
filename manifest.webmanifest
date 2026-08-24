@@ -2,11 +2,16 @@
   "name": "咲登クイズ",
   "short_name": "咲登クイズ",
   "description": "音声入力で答える、算数・漢字・都道府県などのクイズアプリ",
-  "start_url": "/",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
   "theme_color": "#ff8a1f",
   "background_color": "#f5f7fb",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
