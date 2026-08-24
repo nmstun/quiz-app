@@ -143,6 +143,9 @@
     <p class="time-text" id="timeText"></p>
     <p class="best-score" id="bestScoreText"></p>
     <ul class="result-list" id="resultList"></ul>
+    <!-- 間違いがあったときだけ現れる。復習が最優先の行動なのでこちらを主役にし、
+         そのぶん「もう一度挑戦」はスクリプト側で控えめな見た目に切り替える -->
+    <button class="primary-btn hidden" id="reviewBtn">まちがえた問題だけ もう一度</button>
     <button class="primary-btn" id="retryBtn">もう一度挑戦</button>
     <button class="ghost-btn ghost-btn--block" id="courseChangeBtn">別のコースを選ぶ</button>
   </div>

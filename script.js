@@ -1,5 +1,5 @@
 (function () {
-  const APP_VERSION = '0.16.0';
+  const APP_VERSION = '0.17.0';
   let TOTAL = 5;
   const NEXT_QUESTION_DELAY_MS = 2000;
   let questions = [];
@@ -23,6 +23,14 @@
   const PLAYER_LABELS = ['プレイヤー1', 'プレイヤー2'];
   // 何問目かで手番が決まる(0問目→1人目、1問目→2人目、…)
   const playerOf = i => i % playerCount;
+  // いま答える人。復習モードでは、その問題を間違えた本人がもう一度答える
+  const currentPlayer = () => {
+    const q = questions[current];
+    return q && q.player !== undefined ? q.player : playerOf(current);
+  };
+  // 直前のセットで間違えた設問。結果画面の「まちがえた問題だけ」で使う
+  let reviewQueue = [];
+  let reviewing = false;
 
   const $ = id => document.getElementById(id);
   // 動作確認・問い合わせ時にどのビルドを見ているか分かるようにするため、
@@ -53,6 +61,7 @@
   const resultLabelEl = $('resultLabel');
   const resultList = $('resultList');
   const retryBtn = $('retryBtn');
+  const reviewBtn = $('reviewBtn');
   const courseChangeBtn = $('courseChangeBtn');
   const quitBtn = $('quitBtn');
   const endlessCourseBtn = $('endlessCourseBtn');
@@ -384,7 +393,7 @@
   function renderTurn() {
     turnBadgeEl.classList.toggle('hidden', playerCount < 2);
     if (playerCount < 2) return;
-    const p = playerOf(current);
+    const p = currentPlayer();
     turnBadgeEl.textContent = `${PLAYER_LABELS[p]}のばん`;
     turnBadgeEl.classList.toggle('turn-badge--p2', p === 1);
   }
@@ -678,7 +687,7 @@
       nextTimer = null;
       current++;
       // えんえんコースは終わらせず、手前まで来たら設問を継ぎ足す
-      if (endless) {
+      if (endless && !reviewing) {
         if (current >= questions.length) {
           const category = CATEGORY_BY_ID[currentType];
           questions = questions.concat(generateUnique(ENDLESS_CHUNK, () => category.generate()));
@@ -706,7 +715,7 @@
       if (!picked) return;
       awaitingNext = true;
       setInputsDisabled(true);
-      results.push({ q: question.text, userAnswer: picked, correct: null, player: playerOf(current) });
+      results.push({ q: question.text, userAnswer: picked, correct: null, player: currentPlayer() });
       statusLineEl.textContent = `「${picked}」をえらんだ!`;
       statusLineEl.className = 'status-line picked';
       Array.from(choiceListEl.children).forEach(btn => {
@@ -753,7 +762,7 @@
       correctAnswer: correctAnswerDisplay,
       userAnswer: userAnswerDisplay,
       correct: isCorrect,
-      player: playerOf(current)
+      player: currentPlayer()
     });
 
     statusLineEl.textContent = isCorrect
@@ -903,6 +912,8 @@
     bestScoreEl.classList.remove('is-new');
     bestScoreEl.classList.add('hidden');
 
+    updateReviewButton(); // 正解が無いので必ず「まちがい0件」= 非表示になる
+
     resultList.innerHTML = '';
     results.forEach(r => {
       const li = document.createElement('li');
@@ -915,6 +926,18 @@
   function playerTag(r) {
     if (playerCount < 2 || r.player === undefined) return '';
     return `<span class="player-tag${r.player === 1 ? ' player-tag--p2' : ''}">${r.player + 1}P</span>`;
+  }
+
+  // 間違えた設問を復習用に取っておき、あれば結果画面にボタンを出す。
+  // 復習が最優先の行動なので、出すときは「もう一度挑戦」を控えめな見た目に下げる
+  function updateReviewButton() {
+    reviewQueue = results
+      .map((r, i) => (r.correct === false ? Object.assign({}, questions[i], { player: r.player }) : null))
+      .filter(Boolean);
+    const show = reviewQueue.length > 0;
+    reviewBtn.textContent = `まちがえた問題だけ もう一度 (${reviewQueue.length}問)`;
+    reviewBtn.classList.toggle('hidden', !show);
+    retryBtn.className = show ? 'ghost-btn ghost-btn--block' : 'primary-btn';
   }
 
   // ---- 結果表示 ----
@@ -947,6 +970,17 @@
     else msg = '練習あるのみ。もう一度挑戦してみよう。';
     scoreMsg.textContent = msg;
 
+    // 復習は間違えた分だけの短いセットで、通常の記録とは比べられない。
+    // 記録には触らず、そのことだけ伝える
+    if (reviewing) {
+      resultLabelEl.textContent = `${CATEGORY_LABELS[currentType]}・復習${setSize}問`;
+      bestScoreEl.textContent = '復習は記録に残りません';
+      bestScoreEl.classList.remove('is-new', 'hidden');
+      updateReviewButton();
+      renderResultList();
+      return;
+    }
+
     // 算数・漢字は学年別に範囲が変わるため、ベストスコアも学年ごとに分けて記録する
     let courseKey = `${currentType}-${TOTAL}`;
     let categoryLabel = CATEGORY_LABELS[currentType];
@@ -973,6 +1007,7 @@
     bestScoreEl.classList.toggle('is-new', isNewBest);
     bestScoreEl.classList.remove('hidden');
 
+    updateReviewButton();
     renderResultList();
   }
 
@@ -1000,15 +1035,19 @@
       ? `ひきわけ！ ふたりとも${p1}問正解。`
       : `${PLAYER_LABELS[p1 > p2 ? 0 : 1]}のかち！`;
 
-    resultLabelEl.textContent = `${CATEGORY_LABELS[currentType]}・ふたりで${TOTAL}問ずつ`;
+    resultLabelEl.textContent = reviewing
+      ? `${CATEGORY_LABELS[currentType]}・ふたりで復習${setSize}問`
+      : `${CATEGORY_LABELS[currentType]}・ふたりで${TOTAL}問ずつ`;
     // 記録はひとりで解いたときのものと比べられないので残さない
     bestScoreEl.textContent = 'ふたりのときは記録に残りません';
     bestScoreEl.classList.remove('is-new', 'hidden');
 
+    updateReviewButton();
     renderResultList();
   }
 
-  retryBtn.addEventListener('click', startQuiz);
+  retryBtn.addEventListener('click', () => startQuiz());
+  reviewBtn.addEventListener('click', () => startQuiz(reviewQueue));
 
   courseChangeBtn.addEventListener('click', () => {
     resultView.classList.add('hidden');
@@ -1075,20 +1114,26 @@
       endless = count === 0;
       // TOTAL は結果表示やベストスコアのキーにも使うので、えんえんでも触らない
       if (!endless) TOTAL = count;
-      // ふたりのときは「ひとりTOTAL問ずつ」なので、セット全体はその人数倍になる
-      setSize = TOTAL * playerCount;
       courseView.classList.add('hidden');
       startQuiz();
     });
   });
 
-  function startQuiz() {
+  // reviewSet を渡すと、新しく作らずその設問だけを出す(まちがえた問題の復習)
+  function startQuiz(reviewSet) {
     cancelNextTimer();
-    quitBtn.textContent = endless ? '← おわる' : '← やめる';
+    reviewing = !!reviewSet;
+    quitBtn.textContent = endless && !reviewing ? '← おわる' : '← やめる';
     current = 0;
     results = [];
     quizStartTime = Date.now();
-    generateSet();
+    if (reviewing) {
+      questions = reviewSet;
+      setSize = reviewSet.length;
+    } else {
+      setSize = TOTAL * playerCount;
+      generateSet();
+    }
     resultView.classList.add('hidden');
     quizView.classList.remove('hidden');
     renderQuestion();

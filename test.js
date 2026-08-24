@@ -78,10 +78,12 @@ function buildApp(opts = {}) {
     'timeText', 'bestScoreText', 'resultLabel', 'resultList', 'retryBtn', 'courseChangeBtn',
     'quitBtn', 'clearScoresBtn', 'clearScoresMsg', 'seToggleBtn', 'categoryRow',
     'arithGradeField', 'arithGradeRow', 'kanjiGradeField', 'kanjiGradeRow',
-    'endlessCourseBtn', 'playerRow', 'turnBadge'];
+    'endlessCourseBtn', 'playerRow', 'turnBadge', 'reviewBtn'];
   const els = {};
   ids.forEach(id => els[id] = makeEl(id));
   els.turnBadge.classList.add('hidden');
+  els.reviewBtn.classList.add('primary-btn', 'hidden');
+  els.retryBtn.classList.add('primary-btn');
   els.quizView.classList.add('hidden');
   els.resultView.classList.add('hidden');
   els.choiceList.classList.add('hidden');
@@ -280,9 +282,10 @@ function answerCurrent(app, correct = true) {
     (correct ? btns.find(b => b.dataset.choice === sol.value)
              : btns.find(b => b.dataset.choice !== sol.value)).click();
   } else {
-    // 数値で答える設問(算数・画数)は、末尾に文字を足しても数字部分が拾われて
-    // 正解になってしまう。誤答にするには別の数を入れる必要がある
-    const wrong = /^-?\d+$/.test(sol.value) ? String(Number(sol.value) + 1) : sol.value + 'zz9';
+    // 誤答を作るとき、答えに何かを足す方法は使えない。数値の設問は文中の数字が
+    // 拾われるし、3文字以上の記述式は部分一致の保険に引っかかって正解になる。
+    // 数値は別の数、記述式はどの答えとも重ならない文字列を使う
+    const wrong = /^-?\d+$/.test(sol.value) ? String(Number(sol.value) + 1) : 'zzq';
     app.els.textInput.value = correct ? sol.value : wrong;
     app.els.submitBtn.click();
   }
@@ -883,6 +886,85 @@ console.log('=== 8e. ふたりで交互モード ===');
   check('究極の選択: スコアは出さない', app4.els.scoreText.textContent === '🎉');
   check('究極の選択: 一覧に手番の印がつく',
     app4.els.resultList.children.filter(li => li.innerHTML.includes('player-tag')).length === 10);
+}
+
+console.log('=== 8f. まちがえた問題だけ復習 ===');
+{
+  // 5問中2問だけ間違える
+  const app = buildApp();
+  start(app, 'kanji', 5);
+  const wrong = [];
+  for (let i = 0; i < 5; i++) {
+    const ok = i >= 2;
+    if (!ok) wrong.push(app.els.question.textContent);
+    answerCurrent(app, ok);
+    app.runTimers();
+  }
+  check('復習: 間違いがあるとボタンを出す', !app.els.reviewBtn.classList.contains('hidden'));
+  check('復習: 件数をボタンに出す', app.els.reviewBtn.textContent.includes('(2問)'),
+    app.els.reviewBtn.textContent);
+  check('復習: もう一度挑戦は控えめな見た目に下がる',
+    app.els.retryBtn.classList.contains('ghost-btn') && !app.els.retryBtn.classList.contains('primary-btn'),
+    app.els.retryBtn.className);
+
+  const bestBefore = app.store.sakitoQuizBestScores;
+  app.els.reviewBtn.click();
+  check('復習: 間違えた分だけ出題する', app.els.progressCount.textContent === '1 / 2',
+    app.els.progressCount.textContent);
+  const asked = [];
+  for (let i = 0; i < 2; i++) {
+    asked.push(app.els.question.textContent);
+    answerCurrent(app, true);
+    app.runTimers();
+  }
+  check('復習: 出るのは間違えた設問そのもの',
+    asked.slice().sort().join('|') === wrong.slice().sort().join('|'),
+    asked.join(',') + ' / ' + wrong.join(','));
+  check('復習: 結果ラベルが復習と分かる', app.els.resultLabel.textContent === '漢字・復習2問',
+    app.els.resultLabel.textContent);
+  check('復習: 記録に残さない', app.store.sakitoQuizBestScores === bestBefore,
+    String(app.store.sakitoQuizBestScores));
+  check('復習: 全問正解ならボタンは消える', app.els.reviewBtn.classList.contains('hidden'));
+  check('復習: 全問正解なら もう一度挑戦 が主役に戻る',
+    app.els.retryBtn.classList.contains('primary-btn'), app.els.retryBtn.className);
+
+  // 全問正解したときはそもそも出ない
+  const app2 = buildApp();
+  start(app2, 'kanji', 5);
+  for (let i = 0; i < 5; i++) { answerCurrent(app2, true); app2.runTimers(); }
+  check('復習: 間違いが無ければ出さない', app2.els.reviewBtn.classList.contains('hidden'));
+
+  // 採点しないカテゴリでは出さない
+  const app3 = buildApp();
+  start(app3, 'dilemma', 5);
+  for (let i = 0; i < 5; i++) { app3.els.choiceList.children[0].click(); app3.runTimers(); }
+  check('復習: 究極の選択では出さない', app3.els.reviewBtn.classList.contains('hidden'));
+
+  // えんえんコースでも、おわった後に間違い……は出ないが、復習が終わらなくならないこと
+  // (採点するカテゴリでのふたり交互の復習を確認する)
+  const app4 = buildApp();
+  app4.cats.kanji.click();
+  app4.players[2].click();
+  app4.courses[5].click();
+  const owner = [];
+  for (let i = 0; i < 10; i++) {
+    const p = app4.els.turnBadge.textContent;
+    const ok = i >= 2; // 最初の2問(1人目と2人目が1問ずつ)を間違える
+    if (!ok) owner.push(p);
+    answerCurrent(app4, ok);
+    app4.runTimers();
+  }
+  check('復習: ふたりでも出る', !app4.els.reviewBtn.classList.contains('hidden'));
+  app4.els.reviewBtn.click();
+  check('復習: 間違えた本人がもう一度答える',
+    app4.els.turnBadge.textContent === owner[0], app4.els.turnBadge.textContent + ' / ' + owner[0]);
+  answerCurrent(app4, true); app4.runTimers();
+  check('復習: 2問目も間違えた本人の番',
+    app4.els.turnBadge.textContent === owner[1], app4.els.turnBadge.textContent + ' / ' + owner[1]);
+  answerCurrent(app4, true); app4.runTimers();
+  check('復習: ふたりの復習も終わる', !app4.els.resultView.classList.contains('hidden'));
+  check('復習: ふたりの復習ラベル', app4.els.resultLabel.textContent === '漢字・ふたりで復習2問',
+    app4.els.resultLabel.textContent);
 }
 
 console.log('=== 9. 進捗表示と問題文サイズの段階 ===');
