@@ -1,5 +1,5 @@
 (function () {
-  const APP_VERSION = '0.19.0';
+  const APP_VERSION = '0.20.0';
   let TOTAL = 5;
   const NEXT_QUESTION_DELAY_MS = 2000;
   let questions = [];
