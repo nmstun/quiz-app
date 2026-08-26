@@ -581,6 +581,30 @@ h1 {
   color: var(--primary-strong);
   background: var(--primary-soft);
 }
+/* ---------- 直近の成績 ---------- */
+/* 棒の高さは正解の割合。全問不正解でも棒が消えないよう下限を持たせている */
+.history {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  height: 42px;
+  margin: 0 0 6px;
+}
+.history-bar {
+  width: 14px;
+  border-radius: 4px 4px 2px 2px;
+  background: var(--border-strong);
+}
+/* 今回の結果だけ色を変えて、どれが最新か分かるようにする */
+.history-bar--now { background: var(--primary); }
+.history-caption {
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .result-list {
   text-align: left;
   margin: 0 0 20px;

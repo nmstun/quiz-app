@@ -142,6 +142,9 @@
     <p class="msg" id="scoreMsg"></p>
     <p class="time-text" id="timeText"></p>
     <p class="best-score" id="bestScoreText"></p>
+    <!-- 直近の成績。数字だけでは伸びているのか分かりにくいので棒を並べて見せる -->
+    <div class="history hidden" id="historyChart" aria-hidden="true"></div>
+    <p class="history-caption hidden" id="historyCaption"></p>
     <ul class="result-list" id="resultList"></ul>
     <!-- 間違いがあったときだけ現れる。復習が最優先の行動なのでこちらを主役にし、
          そのぶん「もう一度挑戦」はスクリプト側で控えめな見た目に切り替える -->

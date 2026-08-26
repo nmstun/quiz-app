@@ -1,5 +1,5 @@
 (function () {
-  const APP_VERSION = '0.17.0';
+  const APP_VERSION = '0.18.0';
   let TOTAL = 5;
   const NEXT_QUESTION_DELAY_MS = 2000;
   let questions = [];
@@ -62,6 +62,8 @@
   const resultList = $('resultList');
   const retryBtn = $('retryBtn');
   const reviewBtn = $('reviewBtn');
+  const historyEl = $('historyChart');
+  const historyCaptionEl = $('historyCaption');
   const courseChangeBtn = $('courseChangeBtn');
   const quitBtn = $('quitBtn');
   const endlessCourseBtn = $('endlessCourseBtn');
@@ -877,6 +879,67 @@
     }
   }
 
+  // ---- コースごとの成績の履歴(直近HISTORY_LIMIT回) ----
+  // ベストスコアは「一番よかった1回」しか残らないので、伸びているのかが分からない。
+  // 直近の並びを別に持って、結果画面で見比べられるようにする
+  const HISTORY_KEY = 'sakitoQuizHistory';
+  const HISTORY_LIMIT = 10;
+
+  function loadHistory() {
+    try {
+      return JSON.parse(localStorage.getItem(HISTORY_KEY)) || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function saveHistory(history) {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    } catch (e) {
+      // プライベートブラウズ等、保存できない環境では無視
+    }
+  }
+
+  // 今回の結果を足して、そのコースの直近分を返す。キーにコースの問題数が
+  // 入っているので、1つの配列の中では total は常に同じ値になる
+  function pushHistory(courseKey, result) {
+    const history = loadHistory();
+    const list = (history[courseKey] || [])
+      .concat([{ c: result.correct, t: result.total, ms: result.timeMs }]);
+    history[courseKey] = list.slice(-HISTORY_LIMIT);
+    saveHistory(history);
+    return history[courseKey];
+  }
+
+  function renderHistory(list) {
+    // 1回しか記録が無いうちは比べようがないので出さない
+    const show = list.length >= 2;
+    historyEl.classList.toggle('hidden', !show);
+    historyCaptionEl.classList.toggle('hidden', !show);
+    historyEl.innerHTML = '';
+    if (!show) return;
+
+    list.forEach((h, i) => {
+      const bar = document.createElement('div');
+      bar.className = 'history-bar' + (i === list.length - 1 ? ' history-bar--now' : '');
+      const ratio = h.t > 0 ? h.c / h.t : 0;
+      // 0問正解でも棒が見えるように下限を持たせる
+      bar.style.height = (8 + ratio * 92).toFixed(1) + '%';
+      bar.setAttribute('title', `${h.c}/${h.t}`);
+      historyEl.appendChild(bar);
+    });
+    const avg = list.reduce((sum, h) => sum + h.c, 0) / list.length;
+    historyCaptionEl.textContent = `さいきん${list.length}回のへいきん ${avg.toFixed(1)}問`;
+  }
+
+  // 履歴を出さない画面(採点しないカテゴリ・ふたりで交互・復習)で消しておく
+  function hideHistory() {
+    historyEl.classList.add('hidden');
+    historyCaptionEl.classList.add('hidden');
+    historyEl.innerHTML = '';
+  }
+
   function isBetterScore(a, b) {
     if (a.correct !== b.correct) return a.correct > b.correct;
     return a.timeMs < b.timeMs;
@@ -891,9 +954,10 @@
   }
 
   clearScoresBtn.addEventListener('click', () => {
-    if (!confirm('すべてのコースのベストスコアをクリアします。よろしいですか?')) return;
+    if (!confirm('すべてのコースのベストスコアと成績の記録をクリアします。よろしいですか?')) return;
     try {
       localStorage.removeItem(BEST_SCORES_KEY);
+      localStorage.removeItem(HISTORY_KEY);
     } catch (e) {
       // 保存できない環境では何もしない
     }
@@ -912,6 +976,7 @@
     bestScoreEl.classList.remove('is-new');
     bestScoreEl.classList.add('hidden');
 
+    hideHistory(); // 採点しないので残す成績が無い
     updateReviewButton(); // 正解が無いので必ず「まちがい0件」= 非表示になる
 
     resultList.innerHTML = '';
@@ -976,6 +1041,7 @@
       resultLabelEl.textContent = `${CATEGORY_LABELS[currentType]}・復習${setSize}問`;
       bestScoreEl.textContent = '復習は記録に残りません';
       bestScoreEl.classList.remove('is-new', 'hidden');
+      hideHistory();
       updateReviewButton();
       renderResultList();
       return;
@@ -1007,6 +1073,7 @@
     bestScoreEl.classList.toggle('is-new', isNewBest);
     bestScoreEl.classList.remove('hidden');
 
+    renderHistory(pushHistory(courseKey, thisResult));
     updateReviewButton();
     renderResultList();
   }
@@ -1042,6 +1109,7 @@
     bestScoreEl.textContent = 'ふたりのときは記録に残りません';
     bestScoreEl.classList.remove('is-new', 'hidden');
 
+    hideHistory();
     updateReviewButton();
     renderResultList();
   }

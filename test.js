@@ -78,7 +78,8 @@ function buildApp(opts = {}) {
     'timeText', 'bestScoreText', 'resultLabel', 'resultList', 'retryBtn', 'courseChangeBtn',
     'quitBtn', 'clearScoresBtn', 'clearScoresMsg', 'seToggleBtn', 'categoryRow',
     'arithGradeField', 'arithGradeRow', 'kanjiGradeField', 'kanjiGradeRow',
-    'endlessCourseBtn', 'playerRow', 'turnBadge', 'reviewBtn'];
+    'endlessCourseBtn', 'playerRow', 'turnBadge', 'reviewBtn',
+    'historyChart', 'historyCaption'];
   const els = {};
   ids.forEach(id => els[id] = makeEl(id));
   els.turnBadge.classList.add('hidden');
@@ -965,6 +966,85 @@ console.log('=== 8f. まちがえた問題だけ復習 ===');
   check('復習: ふたりの復習も終わる', !app4.els.resultView.classList.contains('hidden'));
   check('復習: ふたりの復習ラベル', app4.els.resultLabel.textContent === '漢字・ふたりで復習2問',
     app4.els.resultLabel.textContent);
+}
+
+console.log('=== 8g. 成績の履歴 ===');
+{
+  // 同じ app(=同じ localStorage)で繰り返し解く。store を共有すれば別インスタンスでもよいが、
+  // 履歴はコースごとに積み上がるものなので通しで確認する
+  const store = {};
+  const runOnce = (correctCount, total = 5) => {
+    const app = buildApp({ store });
+    start(app, 'arith', total);
+    for (let i = 0; i < total; i++) { answerCurrent(app, i < correctCount); app.runTimers(); }
+    return app;
+  };
+
+  const a1 = runOnce(2);
+  check('履歴: 1回目は出さない(比べようがない)', a1.els.historyChart.classList.contains('hidden'));
+
+  const a2 = runOnce(4);
+  check('履歴: 2回目から出す', !a2.els.historyChart.classList.contains('hidden'));
+  check('履歴: 回数分の棒が並ぶ', a2.els.historyChart.children.length === 2,
+    a2.els.historyChart.children.length + '本');
+  check('履歴: 最新の棒だけ色が違う',
+    a2.els.historyChart.children.filter(b => b.classList.contains('history-bar--now')).length === 1);
+  // 2/5 と 4/5 → 下限8% + 割合×92%
+  check('履歴: 棒の高さが正解の割合になる',
+    a2.els.historyChart.children.map(b => b.style.height).join(',') === '44.8%,81.6%',
+    a2.els.historyChart.children.map(b => b.style.height).join(','));
+  check('履歴: 平均を出す', a2.els.historyCaption.textContent === 'さいきん2回のへいきん 3.0問',
+    a2.els.historyCaption.textContent);
+
+  // 上限を超えたら古いものから落ちる
+  for (let i = 0; i < 12; i++) runOnce(5);
+  const a3 = runOnce(5);
+  check('履歴: 直近10回までしか持たない', a3.els.historyChart.children.length === 10,
+    a3.els.historyChart.children.length + '本');
+  check('履歴: 古い記録が落ちて平均が上がる',
+    a3.els.historyCaption.textContent === 'さいきん10回のへいきん 5.0問',
+    a3.els.historyCaption.textContent);
+
+  // コースが違えば別の履歴になる
+  const a4 = buildApp({ store });
+  start(a4, 'arith', 10);
+  for (let i = 0; i < 10; i++) { answerCurrent(a4, true); a4.runTimers(); }
+  check('履歴: コースごとに分かれる', a4.els.historyChart.classList.contains('hidden'),
+    a4.els.historyChart.children.length + '本');
+
+  // 学年が違っても別の履歴になる
+  const a5 = buildApp({ store });
+  a5.cats.arith.click(); a5.aGrades.high.click(); a5.courses[5].click();
+  for (let i = 0; i < 5; i++) { answerCurrent(a5, true); a5.runTimers(); }
+  check('履歴: 学年ごとに分かれる', a5.els.historyChart.classList.contains('hidden'));
+
+  // ふたりで交互・復習・採点しないカテゴリでは残さない
+  const before = store.sakitoQuizHistory;
+  const a6 = buildApp({ store });
+  a6.cats.arith.click(); a6.players[2].click(); a6.courses[5].click();
+  for (let i = 0; i < 10; i++) { answerCurrent(a6, true); a6.runTimers(); }
+  check('履歴: ふたりのときは残さない', store.sakitoQuizHistory === before);
+  check('履歴: ふたりのときは出さない', a6.els.historyChart.classList.contains('hidden'));
+
+  const a7 = buildApp({ store });
+  start(a7, 'arith', 5);
+  for (let i = 0; i < 5; i++) { answerCurrent(a7, i > 0); a7.runTimers(); }
+  const afterRun = store.sakitoQuizHistory;
+  a7.els.reviewBtn.click();
+  answerCurrent(a7, true); a7.runTimers();
+  check('履歴: 復習は残さない', store.sakitoQuizHistory === afterRun);
+  check('履歴: 復習では出さない', a7.els.historyChart.classList.contains('hidden'));
+
+  const a8 = buildApp({ store });
+  start(a8, 'dilemma', 5);
+  for (let i = 0; i < 5; i++) { a8.els.choiceList.children[0].click(); a8.runTimers(); }
+  check('履歴: 採点しないカテゴリでは出さない', a8.els.historyChart.classList.contains('hidden'));
+
+  // 記録クリアで履歴も消える
+  a8.els.clearScoresBtn.click();
+  check('履歴: 記録クリアで履歴も消える', store.sakitoQuizHistory === undefined,
+    String(store.sakitoQuizHistory));
+  check('履歴: 記録クリアでベストスコアも消える', store.sakitoQuizBestScores === undefined);
 }
 
 console.log('=== 9. 進捗表示と問題文サイズの段階 ===');
