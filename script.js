@@ -1,5 +1,5 @@
 (function () {
-  const APP_VERSION = '0.18.0';
+  const APP_VERSION = '0.19.0';
   let TOTAL = 5;
   const NEXT_QUESTION_DELAY_MS = 2000;
   let questions = [];
@@ -219,12 +219,21 @@
 
   const STROKE_QUESTION_RATIO = 0.3; // 漢字クイズのうち画数問題を混ぜる割合
 
+  const KANJI_READINGS_SHOWN = 3; // 正解として見せる読みの数
+
   function generateKanjiQuestion(item) {
     const [kanji, , strokes, readings] = item;
     if (Math.random() < STROKE_QUESTION_RATIO) {
       return { type: 'kanji-stroke', text: `「${kanji}」は何画?`, answer: strokes };
     }
-    return { type: 'kanji-reading', text: `「${kanji}」の読み方は?`, accepted: readings };
+    // 読み方は1つとは限らない。先頭だけを「正解」として見せると、聞き慣れない
+    // 読みが出てくることがあるので、代表的なところを何個か並べる
+    return {
+      type: 'kanji-reading',
+      text: `「${kanji}」の読み方は?`,
+      accepted: readings,
+      answerLabel: readings.slice(0, KANJI_READINGS_SHOWN).join('・')
+    };
   }
 
   function generateRiddleQuestion(item) {
@@ -753,7 +762,8 @@
         ? isChoiceAnswerCorrect(rawText, question.accepted)
         : isTextAnswerCorrect(rawText, question.accepted);
       userAnswerDisplay = rawText.trim();
-      correctAnswerDisplay = question.accepted[0];
+      // answerLabel を持つ設問(漢字の読み)は、正解が複数あるのでそちらを見せる
+      correctAnswerDisplay = question.answerLabel || question.accepted[0];
     }
 
     awaitingNext = true;

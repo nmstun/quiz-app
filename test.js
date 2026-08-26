@@ -1047,6 +1047,45 @@ console.log('=== 8g. 成績の履歴 ===');
   check('履歴: 記録クリアでベストスコアも消える', store.sakitoQuizBestScores === undefined);
 }
 
+console.log('=== 8h. 漢字の読み方の正解表示 ===');
+{
+  // 読みはすべてひらがな。KANJIDIC2には「シリング」「デシメートル」のような
+  // 単位表記が読みとして入っており、それが正解として出てしまっていた
+  const bad = [];
+  KANJI.forEach(k => k[3].forEach(r => { if (!/^[ぁ-ゖー]+$/.test(r)) bad.push(k[0] + '→' + r); }));
+  check('読み候補はすべてひらがな', bad.length === 0, bad.join(','));
+  check('読み候補が空の漢字は無い', KANJI.every(k => k[3].length > 0 && k[3].every(r => r)));
+
+  // 読みが複数ある漢字は、正解表示に複数並ぶ
+  const app = buildApp();
+  let multi = 0, single = 0;
+  for (let round = 0; round < 20 && (multi < 5 || single < 3); round++) {
+    app.els.quitBtn.click();
+    start(app, 'kanji', 20);
+    for (let i = 0; i < 20; i++) {
+      const m = app.els.question.textContent.match(/^「(.+?)」の読み方は\?$/);
+      if (m) {
+        const readings = kanjiBy[m[1]][3];
+        answerCurrent(app, false); // わざと間違えて「正解は…」を出させる
+        const shown = app.els.statusLine.textContent.replace(/^不正解… 正解は /, '');
+        const want = readings.slice(0, 3).join('・');
+        if (readings.length >= 2) {
+          multi++;
+          if (shown !== want) { multi = -999; console.log('    [複数] ' + m[1] + ' → ' + shown + ' (期待 ' + want + ')'); }
+        } else {
+          single++;
+          if (shown !== readings[0]) { single = -999; console.log('    [単一] ' + m[1] + ' → ' + shown); }
+        }
+      } else {
+        answerCurrent(app, true);
+      }
+      app.runTimers();
+    }
+  }
+  check('読みが複数ある漢字は3つまで並べて見せる', multi >= 5, multi + '件');
+  check('読みが1つの漢字はそのまま見せる', single >= 3, single + '件');
+}
+
 console.log('=== 9. 進捗表示と問題文サイズの段階 ===');
 {
   const app = buildApp();
