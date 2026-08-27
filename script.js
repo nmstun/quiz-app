@@ -1,5 +1,5 @@
 (function () {
-  const APP_VERSION = '0.20.0';
+  const APP_VERSION = '0.21.0';
   let TOTAL = 5;
   const NEXT_QUESTION_DELAY_MS = 2000;
   let questions = [];
@@ -16,6 +16,7 @@
   let endless = false;
   const ENDLESS_CHUNK = 10;
   let seenKeys = new Set(); // 1回のセット内で同じ設問を繰り返さないための記録
+  let micDenied = false; // マイクの使用が許可されなかった。この場合ページを読み込み直すまで戻せない
   // ふたりで交互モード。1問ずつ手番を回す。ふたりのときは「TOTAL問ずつ」出すので
   // セット全体の設問数は TOTAL × 人数 になる
   let playerCount = 1;
@@ -483,7 +484,8 @@
   function setInputsDisabled(disabled) {
     submitBtn.disabled = disabled;
     textInput.disabled = disabled;
-    if (SpeechRecognition) micBtn.disabled = disabled;
+    // 権限が無いと分かっているマイクは、設問が変わっても押せるようにしない
+    if (SpeechRecognition) micBtn.disabled = disabled || micDenied;
     Array.from(choiceListEl.children).forEach(btn => { btn.disabled = disabled; });
     // 入力を受け付けない間はマイクも必ずオフにする(テキスト回答時に音声認識が
     // 聞き取り中のまま残る、最終問題後もマイクがオンのままになる、等を防ぐ)
@@ -798,6 +800,28 @@
   // ---- 音声認識セットアップ ----
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
+  // 音声認識のエラーは 'not-allowed' のような英語のコードで来る。そのまま画面に
+  // 出しても子どもには意味が通らないので、次に何をすればいいかが分かる文にする
+  const RECOGNITION_ERROR_MESSAGES = {
+    'no-speech': '聞き取れませんでした。もう一度マイクをおしてね。',
+    'audio-capture': 'マイクが見つかりませんでした。下のらんに答えを入力してね。',
+    'not-allowed': 'マイクを使えませんでした。下のらんに答えを入力してね。',
+    'service-not-allowed': 'マイクを使えませんでした。下のらんに答えを入力してね。',
+    'network': 'ネットにつながっていないので、音声では答えられません。下のらんに答えを入力してね。',
+    'language-not-supported': 'この端末では日本語の音声入力が使えません。下のらんに答えを入力してね。',
+  };
+  const MIC_DENIED_ERRORS = ['not-allowed', 'service-not-allowed'];
+
+  // 権限が無い状態。以降はタップしても何も起きず、押し続けて詰まってしまうので、
+  // ボタンを止めたうえで大人が戻せる手順を出しておく
+  function denyMic() {
+    micDenied = true;
+    micBtn.disabled = true;
+    micBtn.style.opacity = 0.5;
+    noteEl.textContent = 'マイクの使用が許可されていません。'
+      + '端末の設定でマイクを許可したあと、このページを読み込み直すと使えるようになります。';
+  }
+
   function setupRecognition() {
     if (!SpeechRecognition) {
       noteEl.textContent = 'この端末・ブラウザは音声入力に対応していません。テキスト入力をご利用ください。';
@@ -824,8 +848,10 @@
 
     recognition.onerror = (event) => {
       if (event.error === 'aborted') return; // バックグラウンド遷移時などの意図的な中断
-      statusLineEl.textContent = '音声認識エラー: ' + event.error + '。テキスト入力もお試しください。';
+      statusLineEl.textContent = RECOGNITION_ERROR_MESSAGES[event.error]
+        || '音声では答えられませんでした。下のらんに答えを入力してね。';
       statusLineEl.className = 'status-line wrong';
+      if (MIC_DENIED_ERRORS.indexOf(event.error) !== -1) denyMic();
     };
 
     recognition.onend = () => {

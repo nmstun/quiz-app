@@ -1221,5 +1221,76 @@ console.log('=== 13. マイクの解放 ===');
   check('listening が外れる', !app.els.micBtn.classList.contains('listening'));
 }
 
+console.log('=== 13b. 音声認識のエラー表示 ===');
+{
+  let rec = null;
+  class FakeRec {
+    constructor() { rec = this; }
+    start() { if (this.onstart) this.onstart(); }
+    abort() { if (this.onerror) this.onerror({ error: 'aborted' }); if (this.onend) this.onend(); }
+    stop() { if (this.onend) this.onend(); }
+    // 実際のAPIは onerror のあとに onend が来る
+    fail(code) { if (this.onerror) this.onerror({ error: code }); if (this.onend) this.onend(); }
+  }
+
+  // エラーコードをそのまま画面に出さない
+  const codes = ['no-speech', 'audio-capture', 'not-allowed', 'service-not-allowed',
+    'network', 'language-not-supported', 'なにか知らないコード'];
+  const leaked = [];
+  codes.forEach(code => {
+    const app = buildApp({ window: { SpeechRecognition: FakeRec } });
+    start(app, 'arith', 5);
+    app.els.micBtn.click();
+    rec.fail(code);
+    const shown = app.els.statusLine.textContent;
+    if (!shown || shown.includes(code) || /[a-z]-[a-z]/.test(shown)) leaked.push(code + ' → ' + shown);
+  });
+  check('エラーコードをそのまま出さない', leaked.length === 0, leaked.join(' / '));
+
+  // 中断(aborted)は意図的なものなので何も出さない
+  const app0 = buildApp({ window: { SpeechRecognition: FakeRec } });
+  start(app0, 'arith', 5);
+  app0.els.micBtn.click();
+  rec.abort();
+  check('中断ではエラーを出さない', app0.els.statusLine.textContent === '',
+    app0.els.statusLine.textContent);
+
+  // 権限が無いときはマイクを止めて戻し方を案内する
+  const app = buildApp({ window: { SpeechRecognition: FakeRec } });
+  start(app, 'arith', 5);
+  app.els.micBtn.click();
+  rec.fail('not-allowed');
+  check('権限が無いときはマイクを無効化する', app.els.micBtn.disabled === true);
+  check('権限が無いときは戻し方を案内する',
+    app.els.note.textContent.includes('設定') && app.els.note.textContent.includes('読み込み'),
+    app.els.note.textContent);
+
+  // 設問が変わってもマイクは無効のまま(押しても何も起きないボタンを復活させない)
+  answerCurrent(app, true);
+  app.runTimers();
+  check('次の設問でもマイクは無効のまま', app.els.micBtn.disabled === true);
+  check('テキスト入力は使えるまま', app.els.textInput.disabled === false
+    && app.els.submitBtn.disabled === false);
+
+  // 一時的なエラー(聞き取れなかった等)ではマイクを止めない
+  const app2 = buildApp({ window: { SpeechRecognition: FakeRec } });
+  start(app2, 'arith', 5);
+  app2.els.micBtn.click();
+  rec.fail('no-speech');
+  check('聞き取れなかっただけならマイクは使えるまま', app2.els.micBtn.disabled === false);
+  check('聞き取れなかっただけなら案内は出さない', app2.els.note.textContent === '',
+    app2.els.note.textContent);
+
+  // 音声認識に非対応の環境
+  const app3 = buildApp({ window: {} });
+  start(app3, 'arith', 5);
+  check('非対応環境ではマイクを無効化する', app3.els.micBtn.disabled === true);
+  check('非対応環境では案内を出す', app3.els.note.textContent.includes('対応していません'),
+    app3.els.note.textContent);
+  check('非対応環境でもテキスト入力で答えられる',
+    (answerCurrent(app3, true).ok && app3.els.statusLine.textContent.startsWith('正解')),
+    app3.els.statusLine.textContent);
+}
+
 console.log('\n' + (fail === 0 ? '✅ ' : '❌ ') + `pass ${pass} / fail ${fail}`);
 process.exit(fail === 0 ? 0 : 1);
